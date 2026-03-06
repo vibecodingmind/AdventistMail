@@ -7,6 +7,7 @@ import {
   verifyRefreshToken,
   revokeRefreshToken,
   signupUser,
+  findOrCreateGoogleUser,
 } from './auth.service.js';
 import { storeImapCredentials, deleteImapCredentials } from '../common/redis.js';
 import { authMiddleware, type AuthRequest } from './auth.middleware.js';
@@ -175,6 +176,85 @@ authRouter.post(
       return;
     }
     res.json({ success: true });
+  }
+);
+
+// Change password (authenticated user)
+authRouter.post(
+  '/change-password',
+  authMiddleware,
+  [
+    body('currentPassword').notEmpty(),
+    body('newPassword').isLength({ min: 8 }),
+  ],
+  async (req: AuthRequest, res: Response) => {
+    if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) { res.status(400).json({ errors: errors.array() }); return; }
+
+    const { currentPassword, newPassword } = req.body;
+    const { query: dbQuery } = await import('../db/index.js');
+    const bcryptLib = await import('bcryptjs');
+
+    const row = await dbQuery<{ password_hash: string }>(
+      'SELECT password_hash FROM users WHERE id = $1', [req.user.id]
+    );
+    const hash = row.rows[0]?.password_hash;
+    if (!hash || !(await bcryptLib.default.compare(currentPassword, hash))) {
+      res.status(400).json({ error: 'Current password is incorrect' });
+      return;
+    }
+
+    const newHash = await bcryptLib.default.hash(newPassword, 12);
+    await dbQuery('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [newHash, req.user.id]);
+    res.json({ success: true });
+  }
+);
+
+// Google OAuth — accepts Google credential (id_token) from frontend
+authRouter.post(
+  '/google',
+  [body('credential').notEmpty().withMessage('Google credential required')],
+  async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ errors: errors.array() });
+      return;
+    }
+
+    const { credential, userInfo } = req.body;
+
+    const result = await findOrCreateGoogleUser(credential, userInfo);
+
+    if (!result.success || !result.user) {
+      res.status(401).json({ error: result.error || 'Google authentication failed' });
+      return;
+    }
+
+    const { accessToken, refreshToken, expiresIn } = generateTokens(result.user);
+    await storeRefreshToken(result.user.id, refreshToken);
+
+    await createAuditLog({
+      userId: result.user.id,
+      action: 'login',
+      resourceType: 'auth',
+      metadata: { email: result.user.email, provider: 'google' },
+      ipAddress: req.ip,
+    });
+
+    res.json({
+      user: {
+        id: result.user.id,
+        email: result.user.email,
+        display_name: result.user.display_name,
+        role: result.user.role,
+        is_verified: result.user.is_verified,
+      },
+      accessToken,
+      refreshToken,
+      expiresIn,
+      is_new: result.is_new,
+    });
   }
 );
 

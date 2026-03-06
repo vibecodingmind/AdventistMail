@@ -5,6 +5,7 @@ import './globals.css';
 import { Toaster } from 'react-hot-toast';
 import { QueryProvider } from '@/components/QueryProvider';
 import { ThemeProvider } from '@/components/ThemeProvider';
+import { GoogleAuthProvider } from '@/components/GoogleAuthProvider';
 
 const plusJakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -32,12 +33,14 @@ export default function RootLayout({
             __html: `(function(){var t=localStorage.getItem('theme');var d=window.matchMedia('(prefers-color-scheme: dark)').matches;if(t==='dark'||(!t&&d))document.documentElement.classList.add('dark');else document.documentElement.classList.remove('dark');})();`,
           }}
         />
-        <ThemeProvider>
-          <QueryProvider>
-            {children}
-            <Toaster position="top-right" />
-          </QueryProvider>
-        </ThemeProvider>
+        <GoogleAuthProvider>
+          <ThemeProvider>
+            <QueryProvider>
+              {children}
+              <Toaster position="top-right" />
+            </QueryProvider>
+          </ThemeProvider>
+        </GoogleAuthProvider>
         </body>
     </html>
   );

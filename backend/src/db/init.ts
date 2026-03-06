@@ -36,6 +36,34 @@ export async function initDatabase(): Promise<void> {
     // Column might already exist
   }
 
+  // Migration: add google_id for Google OAuth
+  try {
+    await pool.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255)
+    `);
+  } catch {
+    // Column might already exist
+  }
+
+  // Migration: email_requests table for church email assignment flow
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS email_requests (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        requested_email VARCHAR(255) NOT NULL,
+        church_name VARCHAR(255),
+        purpose TEXT,
+        status VARCHAR(20) DEFAULT 'pending',
+        admin_note TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+  } catch {
+    // Table might already exist
+  }
+
   console.log('Database schema initialized');
 
   // Seed default admin user if not exists (for Railway/deployment)

@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
+import { OAuth2Client } from 'google-auth-library';
 import { config } from '../config/index.js';
 import { query } from '../db/index.js';
 import { authenticateWithLdap } from '../common/ldap.js';
@@ -228,6 +229,96 @@ export async function verifyRefreshToken(refreshToken: string): Promise<User | n
 export async function revokeRefreshToken(refreshToken: string): Promise<void> {
   const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
   await query('DELETE FROM refresh_tokens WHERE token_hash = $1', [tokenHash]);
+}
+
+export async function findOrCreateGoogleUser(
+  credential: string,
+  userInfo?: { sub?: string; email?: string; name?: string }
+): Promise<{ success: boolean; user?: User & { is_verified?: boolean }; is_new?: boolean; error?: string }> {
+  try {
+    let email: string;
+    let googleId: string;
+    let displayName: string;
+
+    if (userInfo?.email) {
+      // Frontend passed userInfo from /userinfo endpoint (access_token flow)
+      email = userInfo.email.toLowerCase();
+      googleId = userInfo.sub || credential;
+      displayName = userInfo.name || email.split('@')[0];
+    } else {
+      // id_token flow — verify with google-auth-library
+      const clientId = config.google.clientId;
+      if (!clientId) {
+        return { success: false, error: 'Google Sign-In is not configured on this server.' };
+      }
+      const client = new OAuth2Client(clientId);
+      const ticket = await client.verifyIdToken({ idToken: credential, audience: clientId });
+      const payload = ticket.getPayload();
+      if (!payload || !payload.email) {
+        return { success: false, error: 'Invalid Google credential' };
+      }
+      email = payload.email.toLowerCase();
+      googleId = payload.sub;
+      displayName = payload.name || email.split('@')[0];
+    }
+
+    // Find existing user by email or google_id
+    const existing = await query<{
+      id: string; email: string; display_name: string | null; role: string;
+      zimbra_id: string | null; is_active: boolean; is_verified: boolean; google_id: string | null;
+      created_at: Date; updated_at: Date;
+    }>(
+      'SELECT id, email, display_name, role, zimbra_id, is_active, COALESCE(is_verified, true) as is_verified, google_id, created_at, updated_at FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (existing.rows.length > 0) {
+      const row = existing.rows[0];
+      if (!row.is_active) return { success: false, error: 'Account is disabled' };
+
+      // Link google_id if not linked yet
+      if (!row.google_id) {
+        await query('UPDATE users SET google_id = $1 WHERE id = $2', [googleId, row.id]);
+      }
+
+      if (!row.is_verified) {
+        return { success: false, error: 'Account pending verification. An admin must verify your account before you can sign in.' };
+      }
+
+      return {
+        success: true,
+        is_new: false,
+        user: {
+          id: row.id, email: row.email, display_name: row.display_name,
+          role: row.role as UserRole, zimbra_id: row.zimbra_id,
+          is_active: row.is_active, is_verified: row.is_verified,
+          created_at: row.created_at, updated_at: row.updated_at,
+        },
+      };
+    }
+
+    // New user — create with is_verified = false (requires admin approval)
+    const id = uuidv4();
+    await query(
+      `INSERT INTO users (id, email, display_name, role, google_id, is_verified) VALUES ($1, $2, $3, 'user', $4, false)`,
+      [id, email, displayName, googleId]
+    );
+
+    const newUser = await query<{
+      id: string; email: string; display_name: string | null; role: string;
+      zimbra_id: string | null; is_active: boolean; created_at: Date; updated_at: Date;
+    }>('SELECT id, email, display_name, role, zimbra_id, is_active, created_at, updated_at FROM users WHERE id = $1', [id]);
+
+    const u = newUser.rows[0];
+    return {
+      success: false,
+      is_new: true,
+      error: 'Account created. An admin must verify your account before you can sign in.',
+    };
+  } catch (err) {
+    console.error('Google OAuth error:', err);
+    return { success: false, error: 'Google authentication failed' };
+  }
 }
 
 export async function getUserById(userId: string): Promise<User | null> {
