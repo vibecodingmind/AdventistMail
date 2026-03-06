@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { api, apiFormData } from '@/lib/api';
+import toast from 'react-hot-toast';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
 
@@ -69,6 +70,71 @@ const labelColors: Record<string, string> = {
 export function MessageView({ uid, folder, mailbox, allMessages = [] }: MessageViewProps) {
   const [replyText, setReplyText] = useState('');
   const [activeLabel] = useState('Promising offers');
+  const [showSnoozeMenu, setShowSnoozeMenu] = useState(false);
+  const [snoozing, setSnoozing] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    if (!showSnoozeMenu) return;
+    const h = () => setShowSnoozeMenu(false);
+    document.addEventListener('click', h);
+    return () => document.removeEventListener('click', h);
+  }, [showSnoozeMenu]);
+
+  async function snoozeMessage(until: Date) {
+    setSnoozing(true);
+    try {
+      await api('/snooze', { method: 'POST', body: JSON.stringify({ messageUid: uid, folder, mailbox: mailbox || undefined, snoozeUntil: until.toISOString() }) });
+      toast.success('Message snoozed');
+      setShowSnoozeMenu(false);
+      window.dispatchEvent(new CustomEvent('refresh-mail'));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    } finally {
+      setSnoozing(false);
+    }
+  }
+
+  function extractEmail(addr: string): string {
+    const m = addr.match(/<([^>]+)>/);
+    return m ? m[1] : addr.trim();
+  }
+
+  async function sendQuickReply() {
+    if (!replyText.trim() || !data || !fromAddr) return;
+    const toEmail = extractEmail(data.from);
+    const reSubject = data.subject.toLowerCase().startsWith('re:') ? data.subject : `Re: ${data.subject}`;
+    setSending(true);
+    try {
+      const formData = new FormData();
+      formData.append('from', fromAddr);
+      formData.append('to', JSON.stringify([toEmail]));
+      formData.append('subject', reSubject);
+      formData.append('html', replyText.replace(/\n/g, '<br>'));
+      await apiFormData('/mail/send', formData);
+      toast.success('Reply sent');
+      setReplyText('');
+      window.dispatchEvent(new CustomEvent('refresh-mail'));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const snoozeOpts = [
+    { label: '1 hour', until: () => { const d = new Date(); d.setHours(d.getHours() + 1); return d; } },
+    { label: '3 hours', until: () => { const d = new Date(); d.setHours(d.getHours() + 3); return d; } },
+    { label: 'Tomorrow', until: () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(8, 0, 0); return d; } },
+    { label: 'Next week', until: () => { const d = new Date(); d.setDate(d.getDate() + 7); d.setHours(8, 0, 0); return d; } },
+  ];
+
+  const { data: mailboxesData } = useQuery({
+    queryKey: ['mailboxes'],
+    queryFn: () => api<{ mailboxes: { id: string; email: string; type: string; can_send_as: boolean }[] }>('/mailboxes'),
+  });
+  const mailboxes = mailboxesData?.mailboxes ?? [];
+  const fromAddr = mailboxes.find((m) => m.type === 'personal' || m.can_send_as)?.email || '';
 
   const { data, isLoading } = useQuery({
     queryKey: ['message', uid, folder, mailbox],
@@ -126,17 +192,27 @@ export function MessageView({ uid, folder, mailbox, allMessages = [] }: MessageV
 
         {/* Action icons */}
         <div className="flex items-center gap-1">
+          <div className="relative">
+            <button title="Snooze" onClick={(e) => { e.stopPropagation(); setShowSnoozeMenu(!showSnoozeMenu); }} disabled={snoozing} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </button>
+            {showSnoozeMenu && (
+              <div className="absolute top-full right-0 mt-1 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg shadow-lg z-50 min-w-[120px]">
+                {snoozeOpts.map((o) => (
+                  <button key={o.label} onClick={() => snoozeMessage(o.until())} className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700">
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           {[
             { title: 'Star', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg> },
             { title: 'Copy', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg> },
             { title: 'Notify', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg> },
             { title: 'More', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01" /></svg> },
           ].map(({ title, icon }) => (
-            <button
-              key={title}
-              title={title}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-            >
+            <button key={title} title={title} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
               {icon}
             </button>
           ))}
@@ -299,10 +375,11 @@ export function MessageView({ uid, folder, mailbox, allMessages = [] }: MessageV
             </button>
             {/* Send */}
             <button
-              disabled={!replyText.trim()}
+              onClick={sendQuickReply}
+              disabled={!replyText.trim() || sending || !fromAddr}
               className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-default text-white text-sm font-semibold rounded-xl transition-colors shadow-sm shadow-emerald-200"
             >
-              Send
+              {sending ? 'Sending…' : 'Send'}
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
               </svg>

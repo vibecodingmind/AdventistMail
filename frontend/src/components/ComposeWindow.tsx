@@ -74,8 +74,13 @@ export function ComposeWindow({ onClose, defaultMailbox }: ComposeWindowProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [selectedSignatureId, setSelectedSignatureId] = useState<string | '' | undefined>(undefined);
+  const [scheduleAt, setScheduleAt] = useState<string | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const undoCancelledRef = useRef(false);
 
   const editorRef = useRef<HTMLDivElement>(null);
+
+  const undoSendSeconds = (() => { try { const s = localStorage.getItem('mail_settings'); return s ? (JSON.parse(s).undoSend ? parseInt(JSON.parse(s).undoSend, 10) : 10) : 10; } catch { return 10; } })();
 
   const { data } = useQuery({
     queryKey: ['mailboxes'],
@@ -85,8 +90,13 @@ export function ComposeWindow({ onClose, defaultMailbox }: ComposeWindowProps) {
     queryKey: ['signatures'],
     queryFn: () => api<{ signatures: { id: string; name: string; content: string; is_default: boolean }[] }>('/signatures'),
   });
+  const { data: templatesData } = useQuery({
+    queryKey: ['templates'],
+    queryFn: () => api<{ templates: { id: string; name: string; subject: string; body_html: string }[] }>('/templates'),
+  });
 
   const mailboxes = data?.mailboxes ?? [];
+  const templates = templatesData?.templates ?? [];
   const signatures = sigData?.signatures ?? [];
   const defaultSig = signatures.find((s) => s.is_default) ?? signatures[0];
 
@@ -125,27 +135,83 @@ export function ComposeWindow({ onClose, defaultMailbox }: ComposeWindowProps) {
     exec('foreColor', color);
   }
 
-  async function handleSend() {
+  function applyTemplate(tpl: { subject: string; body_html: string }) {
+    setSubject(tpl.subject);
+    if (editorRef.current) editorRef.current.innerHTML = tpl.body_html;
+  }
+
+  async function doSend() {
     let html = editorRef.current?.innerHTML ?? '';
     const sig = selectedSignatureId === '' ? null : (selectedSignatureId ? signatures.find((s) => s.id === selectedSignatureId) : defaultSig) ?? null;
     if (sig?.content) {
       html += `<div style="margin-top:1.5em;padding-top:1em;border-top:1px solid #e5e7eb;font-size:0.875em;color:#6b7280;">${sig.content.replace(/\n/g, '<br>')}</div>`;
     }
+
+    if (scheduleAt) {
+      try {
+        await api('/scheduled', {
+          method: 'POST',
+          body: JSON.stringify({
+            from_addr: from,
+            to_addrs: to.split(',').map((e) => e.trim()).filter(Boolean),
+            cc_addrs: cc.trim() ? cc.split(',').map((e) => e.trim()).filter(Boolean) : [],
+            bcc_addrs: bcc.trim() ? bcc.split(',').map((e) => e.trim()).filter(Boolean) : [],
+            subject,
+            html_body: html,
+            send_at: new Date(scheduleAt).toISOString(),
+          }),
+        });
+        toast.success('Email scheduled');
+        onClose();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to schedule');
+      }
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('from', from);
+    formData.append('to', JSON.stringify(to.split(',').map((e) => e.trim()).filter(Boolean)));
+    if (cc.trim()) formData.append('cc', JSON.stringify(cc.split(',').map((e) => e.trim()).filter(Boolean)));
+    if (bcc.trim()) formData.append('bcc', JSON.stringify(bcc.split(',').map((e) => e.trim()).filter(Boolean)));
+    formData.append('subject', subject);
+    formData.append('html', html);
+    files.forEach((f) => formData.append('attachments', f));
+
+    await apiFormData('/mail/send', formData);
+    toast.success('Email sent');
+    onClose();
+  }
+
+  async function handleSend() {
     if (!to.trim()) { toast.error('Please enter a recipient'); return; }
     setSending(true);
-    try {
-      const formData = new FormData();
-      formData.append('from', from);
-      formData.append('to', JSON.stringify(to.split(',').map((e) => e.trim()).filter(Boolean)));
-      if (cc.trim()) formData.append('cc', JSON.stringify(cc.split(',').map((e) => e.trim()).filter(Boolean)));
-      if (bcc.trim()) formData.append('bcc', JSON.stringify(bcc.split(',').map((e) => e.trim()).filter(Boolean)));
-      formData.append('subject', subject);
-      formData.append('html', html);
-      files.forEach((f) => formData.append('attachments', f));
+    undoCancelledRef.current = false;
 
-      await apiFormData('/mail/send', formData);
-      toast.success('Email sent');
-      onClose();
+    if (undoSendSeconds > 0 && !scheduleAt) {
+      let count = undoSendSeconds;
+      const id = toast((t) => (
+        <span>
+          Sending in {count}s… <button onClick={() => { undoCancelledRef.current = true; if (undoTimerRef.current) clearInterval(undoTimerRef.current); toast.dismiss(t.id); setSending(false); }} className="ml-2 font-semibold underline">Undo</button>
+        </span>
+      ), { duration: undoSendSeconds * 1000 + 500 });
+      undoTimerRef.current = setInterval(() => {
+        count -= 1;
+        if (undoCancelledRef.current || count <= 0) {
+          if (undoTimerRef.current) clearInterval(undoTimerRef.current);
+          undoTimerRef.current = null;
+          if (!undoCancelledRef.current) {
+            doSend().catch((err) => toast.error(err instanceof Error ? err.message : 'Failed')).finally(() => setSending(false));
+          }
+          return;
+        }
+      }, 1000);
+      setSending(false);
+      return;
+    }
+
+    try {
+      await doSend();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to send');
     } finally {
@@ -299,6 +365,42 @@ export function ComposeWindow({ onClose, defaultMailbox }: ComposeWindowProps) {
                   </select>
                 </div>
               )}
+
+              {/* Template */}
+              {templates.length > 0 && (
+                <div className="flex items-center gap-2 px-4 py-2">
+                  <span className="text-xs font-semibold text-slate-400 w-10 shrink-0">Tpl</span>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const t = templates.find((x) => x.id === e.target.value);
+                      if (t) applyTemplate(t);
+                      e.target.value = '';
+                    }}
+                    className="text-sm text-slate-700 bg-transparent focus:outline-none py-1 border-0"
+                  >
+                    <option value="">Insert template…</option>
+                    {templates.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Schedule */}
+              <div className="flex items-center gap-2 px-4 py-2">
+                <span className="text-xs font-semibold text-slate-400 w-10 shrink-0">Sched</span>
+                <input
+                  type="datetime-local"
+                  value={scheduleAt || ''}
+                  onChange={(e) => setScheduleAt(e.target.value || null)}
+                  min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+                  className="text-sm text-slate-700 px-2 py-1 border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-emerald-400/30"
+                />
+                {scheduleAt && (
+                  <button type="button" onClick={() => setScheduleAt(null)} className="text-xs text-slate-400 hover:text-red-600">Clear</button>
+                )}
+              </div>
 
               {/* ── Formatting toolbar ── */}
               <div className="flex items-center gap-0.5 px-3 py-2 bg-slate-50 flex-wrap">

@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 import { Sidebar } from '@/components/Sidebar';
 import { IconNavBar } from '@/components/IconNavBar';
 import { getTokenRole } from '@/lib/api';
@@ -14,6 +15,13 @@ export default function MailLayout({ children }: { children: React.ReactNode }) 
     if (!token) { router.push('/login'); return; }
     if (getTokenRole() === 'super_admin') { router.replace('/superadmin'); return; }
   }, [router]);
+
+  useEffect(() => {
+    if (sessionStorage.getItem('newDeviceAlert') === '1') {
+      sessionStorage.removeItem('newDeviceAlert');
+      toast('New sign-in from a new device. If this wasn\'t you, check Settings → Security.', { duration: 6000, icon: '🔐' });
+    }
+  }, []);
 
   return (
     <div className="h-screen bg-[#ECEDF5] flex items-center justify-center p-4 font-sans">

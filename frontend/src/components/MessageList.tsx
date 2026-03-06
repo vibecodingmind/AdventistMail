@@ -1,7 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import clsx from 'clsx';
+import { useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api';
+import toast from 'react-hot-toast';
 
 interface Message {
   uid: number;
@@ -18,6 +21,7 @@ interface MessageListProps {
   onSelect: (uid: number) => void;
   folder: string;
   mailbox?: string;
+  onRefresh?: () => void;
 }
 
 const avatarPalette = [
@@ -54,8 +58,105 @@ function formatTime(dateStr: string): string {
   return d.toLocaleDateString([], { day: 'numeric', month: '2-digit' });
 }
 
-export function MessageList({ messages, selectedUid, onSelect }: MessageListProps) {
+export function MessageList({ messages, selectedUid, onSelect, folder, mailbox, onRefresh }: MessageListProps) {
   const [starred, setStarred] = useState<Set<number>>(new Set());
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const queryClient = useQueryClient();
+
+  function refresh() {
+    queryClient.invalidateQueries({ queryKey: ['messages', folder, mailbox] });
+    onRefresh?.();
+  }
+
+  async function bulkMove(destFolder: string) {
+    if (selected.size === 0) return;
+    setBulkLoading(true);
+    try {
+      await api('/mail/bulk/move', {
+        method: 'POST',
+        body: JSON.stringify({ folder, uids: Array.from(selected), destFolder, mailbox }),
+      });
+      toast.success(`Moved ${selected.size} message(s)`);
+      setSelected(new Set());
+      refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    } finally {
+      setBulkLoading(false);
+    }
+  }
+
+  async function bulkSnooze(until: Date) {
+    if (selected.size === 0) return;
+    setBulkLoading(true);
+    try {
+      await Promise.all(
+        Array.from(selected).map((messageUid) =>
+          api('/snooze', {
+            method: 'POST',
+            body: JSON.stringify({ messageUid, folder, mailbox: mailbox || undefined, snoozeUntil: until.toISOString() }),
+          })
+        )
+      );
+      toast.success(`Snoozed ${selected.size} message(s)`);
+      setSelected(new Set());
+      refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    } finally {
+      setBulkLoading(false);
+    }
+  }
+
+  async function bulkMarkRead(read: boolean) {
+    if (selected.size === 0) return;
+    setBulkLoading(true);
+    try {
+      await api('/mail/bulk/flags', {
+        method: 'POST',
+        body: JSON.stringify({ folder, uids: Array.from(selected), flags: ['\\Seen'], add: read, mailbox }),
+      });
+      toast.success(read ? 'Marked as read' : 'Marked as unread');
+      setSelected(new Set());
+      refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    } finally {
+      setBulkLoading(false);
+    }
+  }
+
+  function toggleSelect(e: React.MouseEvent, uid: number) {
+    e.stopPropagation();
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(uid) ? next.delete(uid) : next.add(uid);
+      return next;
+    });
+  }
+
+  const [showSnoozeMenu, setShowSnoozeMenu] = useState(false);
+  const snoozeMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showSnoozeMenu) return;
+    const h = () => setShowSnoozeMenu(false);
+    setTimeout(() => document.addEventListener('click', h), 0);
+    return () => document.removeEventListener('click', h);
+  }, [showSnoozeMenu]);
+
+  const snoozeOptions = [
+    { label: '1 hour', until: () => { const d = new Date(); d.setHours(d.getHours() + 1); return d; } },
+    { label: '3 hours', until: () => { const d = new Date(); d.setHours(d.getHours() + 3); return d; } },
+    { label: 'Tomorrow', until: () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(8, 0, 0); return d; } },
+    { label: 'Next week', until: () => { const d = new Date(); d.setDate(d.getDate() + 7); d.setHours(8, 0, 0); return d; } },
+  ];
+
+  function toggleSelectAll() {
+    if (selected.size === messages.length) setSelected(new Set());
+    else setSelected(new Set(messages.map((m) => m.uid)));
+  }
 
   function toggleStar(e: React.MouseEvent, uid: number) {
     e.stopPropagation();
@@ -75,6 +176,29 @@ export function MessageList({ messages, selectedUid, onSelect }: MessageListProp
   }
 
   return (
+    <div className="flex-1 flex flex-col min-h-0">
+      {selected.size > 0 && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-100 dark:border-emerald-800/30 shrink-0">
+          <span className="text-xs font-medium text-emerald-800 dark:text-emerald-200">{selected.size} selected</span>
+          <button onClick={() => bulkMarkRead(true)} disabled={bulkLoading} className="text-xs px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-800/50 hover:bg-emerald-200 dark:hover:bg-emerald-700/50 disabled:opacity-50">Read</button>
+          <button onClick={() => bulkMarkRead(false)} disabled={bulkLoading} className="text-xs px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-800/50 hover:bg-emerald-200 dark:hover:bg-emerald-700/50 disabled:opacity-50">Unread</button>
+          {folder !== 'trash' && <button onClick={() => bulkMove('Trash')} disabled={bulkLoading} className="text-xs px-2 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-800/40 disabled:opacity-50">Delete</button>}
+          {folder === 'inbox' && <button onClick={() => bulkMove('Sent')} disabled={bulkLoading} className="text-xs px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-800/50 hover:bg-emerald-200 dark:hover:bg-emerald-700/50 disabled:opacity-50">Archive</button>}
+          <div className="relative" ref={snoozeMenuRef}>
+            <button onClick={(e) => { e.stopPropagation(); setShowSnoozeMenu(!showSnoozeMenu); }} disabled={bulkLoading} className="text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-600/50 disabled:opacity-50">Snooze</button>
+            {showSnoozeMenu && (
+              <div className="absolute top-full left-0 mt-1 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg shadow-lg z-50 min-w-[120px]">
+                {snoozeOptions.map((o) => (
+                  <button key={o.label} onClick={() => { bulkSnooze(o.until()); setShowSnoozeMenu(false); }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700">
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <button onClick={() => setSelected(new Set())} className="text-xs px-2 py-0.5 rounded text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700/50 ml-auto">Cancel</button>
+        </div>
+      )}
     <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-1">
       {messages.map((msg) => {
         const name = parseName(msg.from);
@@ -89,13 +213,20 @@ export function MessageList({ messages, selectedUid, onSelect }: MessageListProp
             key={msg.uid}
             onClick={() => onSelect(msg.uid)}
             className={clsx(
-              'w-full text-left px-3 py-3.5 rounded-xl transition-all',
+              'w-full text-left px-3 py-3.5 rounded-xl transition-all flex items-start gap-2',
               isSelected
-                ? 'bg-white shadow-sm shadow-slate-200/80 border border-slate-100'
-                : 'hover:bg-slate-50'
+                ? 'bg-white dark:bg-slate-800 shadow-sm shadow-slate-200/80 dark:shadow-none border border-slate-100 dark:border-slate-700'
+                : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
             )}
           >
-            <div className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              checked={selected.has(msg.uid)}
+              onChange={() => {}}
+              onClick={(e) => toggleSelect(e, msg.uid)}
+              className="mt-2.5 rounded text-emerald-500 shrink-0"
+            />
+            <div className="flex items-start gap-3 min-w-0 flex-1">
               {/* Avatar */}
               <div className={clsx(
                 'w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ring-2 ring-white',
@@ -136,6 +267,7 @@ export function MessageList({ messages, selectedUid, onSelect }: MessageListProp
           </button>
         );
       })}
+    </div>
     </div>
   );
 }

@@ -16,6 +16,7 @@ import {
   rejectOrganization,
   listPendingOrgEmailRequests,
   approveOrgEmailRequest,
+  updateOrganizationBranding,
 } from './organizations.service.js';
 
 export const organizationsRouter = Router();
@@ -65,6 +66,33 @@ organizationsRouter.post(
         return;
       }
       res.json({ success: true, orgId: result.orgId });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+    }
+  }
+);
+
+// Update org branding (org_admin only)
+organizationsRouter.patch(
+  '/:id/branding',
+  [param('id').isUUID(), body('logo_url').optional().isString(), body('primary_color').optional().matches(/^#[0-9A-Fa-f]{3,6}$/)],
+  async (req: AuthRequest, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ errors: errors.array() });
+      return;
+    }
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+      const result = await updateOrganizationBranding(req.params.id, req.user.id, {
+        logo_url: req.body.logo_url,
+        primary_color: req.body.primary_color,
+      });
+      if (!result.success) {
+        res.status(403).json({ error: result.error });
+        return;
+      }
+      res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
     }

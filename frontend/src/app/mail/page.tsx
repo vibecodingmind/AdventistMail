@@ -1,11 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { MessageList } from '@/components/MessageList';
 import { MessageView } from '@/components/MessageView';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 
 interface Message {
   uid: number;
@@ -19,9 +22,11 @@ interface Message {
 export default function MailPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const mailbox = searchParams.get('mailbox') || undefined;
   const [selectedUid, setSelectedUid] = useState<number | null>(null);
   const [search, setSearch] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const { data } = useQuery({
     queryKey: ['messages', 'inbox', mailbox],
@@ -39,6 +44,41 @@ export default function MailPage() {
     if (search.trim()) router.push(`/mail/search?q=${encodeURIComponent(search.trim())}`);
   }
 
+  const onArchive = async () => {
+    if (!selectedUid) return;
+    try {
+      await api('/mail/bulk/move', { method: 'POST', body: JSON.stringify({ folder: 'inbox', uids: [selectedUid], destFolder: 'Sent', mailbox }) });
+      toast.success('Archived');
+      queryClient.invalidateQueries({ queryKey: ['messages', 'inbox', mailbox] });
+      setSelectedUid(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    }
+  };
+
+  const onDelete = async () => {
+    if (!selectedUid) return;
+    try {
+      await api('/mail/bulk/move', { method: 'POST', body: JSON.stringify({ folder: 'inbox', uids: [selectedUid], destFolder: 'Trash', mailbox }) });
+      toast.success('Deleted');
+      queryClient.invalidateQueries({ queryKey: ['messages', 'inbox', mailbox] });
+      setSelectedUid(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    }
+  };
+
+  useKeyboardShortcuts({
+    folder: 'inbox',
+    messages,
+    selectedUid,
+    onSelect: setSelectedUid,
+    onArchive,
+    onDelete,
+    searchRef: searchInputRef,
+    enabled: messages.length > 0,
+  });
+
   return (
     <div className="flex flex-1 min-w-0 overflow-hidden">
       {/* ── Email list column ── */}
@@ -47,10 +87,11 @@ export default function MailPage() {
         <div className="px-4 py-4">
           <form onSubmit={handleSearch} className="relative">
             <input
+              ref={searchInputRef}
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search"
+              placeholder="Search (press / to focus)"
               className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-300 transition-all"
             />
             <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">

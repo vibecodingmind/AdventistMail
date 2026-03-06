@@ -148,6 +148,25 @@ Without Zimbra, users created by Admin in the dashboard can still log in (passwo
 
 ---
 
+## New features (full implementation)
+
+| Feature | Location |
+|---------|----------|
+| **Email templates** | Settings → Templates; Compose → Insert template |
+| **Filter rules** | Settings → Filters and Blocked Addresses |
+| **Scheduled send** | Compose → Schedule datetime |
+| **Undo send** | General settings → Undo Send (5–30 sec) |
+| **Bulk actions** | Inbox: select messages → Read, Unread, Delete, Archive |
+| **Attachment preview** | Add `?inline=1` to attachment URL for inline display |
+| **Data export** | Settings → Security → Export your data (GDPR) |
+| **Account deletion** | Settings → Security → Delete account |
+| **Domain management** | Admin → Domains (add allowed domains) |
+| **Audit export** | Admin → `GET /api/v1/admin/audit-export` |
+| **Bulk user import** | `POST /api/v1/admin/users/bulk-import` with `{ users: [{ email, password, displayName? }] }` |
+| **PWA** | Installable via `/manifest.json` |
+
+---
+
 ## Deployment verification
 
 After deployment, verify:

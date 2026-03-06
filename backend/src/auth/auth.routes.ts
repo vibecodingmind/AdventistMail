@@ -23,7 +23,7 @@ authRouter.post(
   '/signup',
   [
     body('email').isEmail().normalizeEmail(),
-    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+    body('password').notEmpty().withMessage('Password required'),
     body('displayName').optional().isString().trim(),
   ],
   async (req: Request, res: Response) => {
@@ -34,6 +34,13 @@ authRouter.post(
     }
 
     const { email, password, displayName } = req.body;
+
+    const { validatePassword } = await import('./password-policy.js');
+    const pwCheck = validatePassword(password);
+    if (!pwCheck.valid) {
+      res.status(400).json({ error: pwCheck.message });
+      return;
+    }
 
     const result = await signupUser(email, password, displayName);
 
@@ -117,11 +124,14 @@ authRouter.post(
     await storeRefreshToken(result.user.id, refreshToken);
     await storeImapCredentials(result.user.id, result.user.email, password);
 
+    const { recordLoginSecurity } = await import('../security/security.service.js');
+    const { isNewDevice } = await recordLoginSecurity(result.user.id, ip, req.get('User-Agent'));
+
     await createAuditLog({
       userId: result.user.id,
       action: 'login',
       resourceType: 'auth',
-      metadata: { email: result.user.email },
+      metadata: { email: result.user.email, newDevice: isNewDevice },
       ipAddress: ip,
     });
 
@@ -132,6 +142,7 @@ authRouter.post(
         display_name: result.user.display_name,
         role: result.user.role,
         twoFaEnabled: result.user.twoFaEnabled,
+        newDeviceAlert: isNewDevice,
       },
       accessToken,
       refreshToken,
@@ -187,6 +198,17 @@ authRouter.get('/me', authMiddleware, async (req: AuthRequest, res) => {
     display_name: req.user.display_name,
     role: req.user.role,
   });
+});
+
+authRouter.get('/security-alerts', authMiddleware, async (req: AuthRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const { getSecurityAlerts } = await import('../security/security.service.js');
+    const alerts = await getSecurityAlerts(req.user.id);
+    res.json({ alerts });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
 });
 
 authRouter.get('/sessions', authMiddleware, async (req: AuthRequest, res) => {
@@ -248,7 +270,7 @@ authRouter.post(
   authMiddleware,
   [
     body('currentPassword').notEmpty(),
-    body('newPassword').isLength({ min: 8 }),
+    body('newPassword').notEmpty(),
   ],
   async (req: AuthRequest, res: Response) => {
     if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
@@ -256,6 +278,11 @@ authRouter.post(
     if (!errors.isEmpty()) { res.status(400).json({ errors: errors.array() }); return; }
 
     const { currentPassword, newPassword } = req.body;
+    const { validatePassword } = await import('./password-policy.js');
+    const pwCheck = validatePassword(newPassword);
+    if (!pwCheck.valid) {
+      return res.status(400).json({ error: pwCheck.message });
+    }
     const { query: dbQuery } = await import('../db/index.js');
     const bcryptLib = await import('bcryptjs');
 
@@ -269,7 +296,7 @@ authRouter.post(
     }
 
     const newHash = await bcryptLib.default.hash(newPassword, 12);
-    await dbQuery('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [newHash, req.user.id]);
+    await dbQuery('UPDATE users SET password_hash = $1, password_changed_at = NOW(), updated_at = NOW() WHERE id = $2', [newHash, req.user.id]);
     res.json({ success: true });
   }
 );
@@ -297,11 +324,14 @@ authRouter.post(
     const { accessToken, refreshToken, expiresIn } = generateTokens(result.user);
     await storeRefreshToken(result.user.id, refreshToken);
 
+    const { recordLoginSecurity } = await import('../security/security.service.js');
+    const { isNewDevice } = await recordLoginSecurity(result.user.id, req.ip, req.get('User-Agent'));
+
     await createAuditLog({
       userId: result.user.id,
       action: 'login',
       resourceType: 'auth',
-      metadata: { email: result.user.email, provider: 'google' },
+      metadata: { email: result.user.email, provider: 'google', newDevice: isNewDevice },
       ipAddress: req.ip,
     });
 
@@ -312,6 +342,7 @@ authRouter.post(
         display_name: result.user.display_name,
         role: result.user.role,
         is_verified: result.user.is_verified,
+        newDeviceAlert: isNewDevice,
       },
       accessToken,
       refreshToken,
@@ -339,12 +370,18 @@ authRouter.post(
   '/reset-password',
   [
     body('token').notEmpty(),
-    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+    body('password').notEmpty(),
   ],
   async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       res.status(400).json({ errors: errors.array() });
+      return;
+    }
+    const { validatePassword } = await import('./password-policy.js');
+    const pwCheck = validatePassword(req.body.password);
+    if (!pwCheck.valid) {
+      res.status(400).json({ error: pwCheck.message });
       return;
     }
     const result = await resetPassword(req.body.token, req.body.password);
@@ -362,3 +399,56 @@ authRouter.post('/2fa/disable', authMiddleware, async (req: AuthRequest, res) =>
   await disable2FA(req.user.id);
   res.json({ success: true });
 });
+
+// Data export (GDPR)
+authRouter.post('/export-data', authMiddleware, async (req: AuthRequest, res: Response) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  const { query: dbQuery } = await import('../db/index.js');
+  try {
+    const [userRow, sigsRow, templatesRow, auditRow] = await Promise.all([
+      dbQuery('SELECT id, email, display_name, role, created_at, updated_at FROM users WHERE id = $1', [req.user.id]),
+      dbQuery('SELECT name, content, is_default FROM user_signatures WHERE user_id = $1', [req.user.id]),
+      dbQuery('SELECT name, subject, body_html, created_at FROM email_templates WHERE user_id = $1', [req.user.id]),
+      dbQuery('SELECT action, resource_type, resource_id, metadata, created_at FROM audit_logs WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1000', [req.user.id]),
+    ]);
+    const exportData = {
+      exportedAt: new Date().toISOString(),
+      user: userRow.rows[0] || null,
+      signatures: sigsRow.rows,
+      templates: templatesRow.rows,
+      auditLogs: auditRow.rows,
+    };
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename="adventist-mail-export.json"');
+    res.json(exportData);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Export failed' });
+  }
+});
+
+// Account deletion (requires password)
+authRouter.post(
+  '/delete-account',
+  authMiddleware,
+  [body('password').notEmpty().withMessage('Password required for verification')],
+  async (req: AuthRequest, res: Response) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+    const { query: dbQuery } = await import('../db/index.js');
+    const bcryptLib = await import('bcryptjs');
+    const row = await dbQuery<{ password_hash: string }>('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
+    const hash = row.rows[0]?.password_hash;
+    if (!hash || !(await bcryptLib.default.compare(req.body.password, hash))) {
+      return res.status(400).json({ error: 'Invalid password' });
+    }
+    // Soft delete: set is_active = false, clear sensitive data
+    await dbQuery(
+      'UPDATE users SET is_active = false, password_hash = NULL, two_fa_secret = NULL, updated_at = NOW() WHERE id = $1',
+      [req.user.id]
+    );
+    await deleteImapCredentials(req.user.id);
+    await createAuditLog({ userId: req.user.id, action: 'account_deleted', resourceType: 'user', ipAddress: req.ip });
+    res.json({ success: true, message: 'Account has been deactivated.' });
+  }
+);

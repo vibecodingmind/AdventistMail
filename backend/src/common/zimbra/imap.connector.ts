@@ -104,3 +104,48 @@ export async function getMailboxList(client: ImapFlow): Promise<{ path: string; 
   }
   return list;
 }
+
+export async function moveMessages(
+  client: ImapFlow,
+  sourceMailbox: string,
+  uids: number[],
+  destMailbox: string
+): Promise<void> {
+  const lock = await client.getMailboxLock(sourceMailbox);
+  try {
+    await client.mailboxOpen(sourceMailbox);
+    await client.messageMove(uids, destMailbox, { uid: true });
+  } finally {
+    lock.release();
+  }
+}
+
+export async function addFlags(
+  client: ImapFlow,
+  mailbox: string,
+  uids: number[],
+  flags: string[]
+): Promise<void> {
+  const lock = await client.getMailboxLock(mailbox);
+  try {
+    await client.mailboxOpen(mailbox);
+    await client.messageFlagsAdd(uids, flags, { uid: true });
+  } finally {
+    lock.release();
+  }
+}
+
+export async function removeFlags(
+  client: ImapFlow,
+  mailbox: string,
+  uids: number[],
+  flags: string[]
+): Promise<void> {
+  const lock = await client.getMailboxLock(mailbox);
+  try {
+    await client.mailboxOpen(mailbox);
+    await client.messageFlagsRemove(uids, flags, { uid: true });
+  } finally {
+    lock.release();
+  }
+}

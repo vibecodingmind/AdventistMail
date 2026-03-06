@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 
 interface Props {
   mode: 'login' | 'signup';
-  onSuccess: (tokens: { accessToken: string; refreshToken: string }) => void;
+  onSuccess: (tokens: { accessToken: string; refreshToken: string; user?: { newDeviceAlert?: boolean } }) => void;
   onError: (msg: string) => void;
 }
 
@@ -21,7 +21,7 @@ export default function GoogleOAuthButton({ mode, onSuccess, onError }: Props) {
           headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
         }).then((r) => r.json());
 
-        const res = await api<{ accessToken: string; refreshToken: string }>('/auth/google', {
+        const res = await api<{ accessToken: string; refreshToken: string; user?: { newDeviceAlert?: boolean } }>('/auth/google', {
           method: 'POST',
           body: JSON.stringify({ credential: tokenResponse.access_token, userInfo }),
         });

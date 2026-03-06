@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { MessageList } from '@/components/MessageList';
 import { MessageView } from '@/components/MessageView';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import toast from 'react-hot-toast';
 
 interface Message {
   uid: number;
@@ -25,6 +27,13 @@ export function MailFolderLayout({ folder, title }: MailFolderLayoutProps) {
   const searchParams = useSearchParams();
   const mailbox = searchParams.get('mailbox') || undefined;
   const [selectedUid, setSelectedUid] = useState<number | null>(null);
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const h = () => queryClient.invalidateQueries({ queryKey: ['messages', folder, mailbox] });
+    window.addEventListener('refresh-mail', h);
+    return () => window.removeEventListener('refresh-mail', h);
+  }, [queryClient, folder, mailbox]);
 
   const { data } = useQuery({
     queryKey: ['messages', folder, mailbox],
@@ -36,6 +45,40 @@ export function MailFolderLayout({ folder, title }: MailFolderLayoutProps) {
   });
 
   const messages = data?.messages ?? [];
+
+  const onArchive = useCallback(async () => {
+    if (!selectedUid) return;
+    try {
+      await api('/mail/bulk/move', { method: 'POST', body: JSON.stringify({ folder, uids: [selectedUid], destFolder: 'Sent', mailbox }) });
+      toast.success('Archived');
+      queryClient.invalidateQueries({ queryKey: ['messages', folder, mailbox] });
+      setSelectedUid(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    }
+  }, [selectedUid, folder, mailbox, queryClient]);
+
+  const onDelete = useCallback(async () => {
+    if (!selectedUid) return;
+    try {
+      await api('/mail/bulk/move', { method: 'POST', body: JSON.stringify({ folder, uids: [selectedUid], destFolder: 'Trash', mailbox }) });
+      toast.success('Deleted');
+      queryClient.invalidateQueries({ queryKey: ['messages', folder, mailbox] });
+      setSelectedUid(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    }
+  }, [selectedUid, folder, mailbox, queryClient]);
+
+  useKeyboardShortcuts({
+    folder,
+    messages,
+    selectedUid,
+    onSelect: setSelectedUid,
+    onArchive: folder === 'inbox' ? onArchive : undefined,
+    onDelete: folder !== 'trash' ? onDelete : undefined,
+    enabled: messages.length > 0,
+  });
 
   return (
     <div className="flex flex-1 min-w-0 bg-white dark:bg-slate-900">

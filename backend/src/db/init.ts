@@ -249,6 +249,179 @@ export async function initDatabase(): Promise<void> {
     // Table might already exist
   }
 
+  // Migration: email_templates table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS email_templates (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(100) NOT NULL,
+        subject VARCHAR(500) NOT NULL,
+        body_html TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+  } catch {
+    // Table might already exist
+  }
+
+  // Migration: filter_rules table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS filter_rules (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(100) NOT NULL,
+        match_from VARCHAR(255),
+        match_to VARCHAR(255),
+        match_subject VARCHAR(255),
+        match_has_attachment BOOLEAN DEFAULT false,
+        action_move VARCHAR(100),
+        action_mark_read BOOLEAN DEFAULT false,
+        action_add_label VARCHAR(100),
+        is_active BOOLEAN DEFAULT true,
+        sort_order INT DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+  } catch {
+    // Table might already exist
+  }
+
+  // Migration: scheduled_emails table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS scheduled_emails (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        from_addr VARCHAR(255) NOT NULL,
+        to_addrs TEXT[] NOT NULL,
+        cc_addrs TEXT[],
+        bcc_addrs TEXT[],
+        subject VARCHAR(500) NOT NULL,
+        html_body TEXT,
+        text_body TEXT,
+        send_at TIMESTAMPTZ NOT NULL,
+        status VARCHAR(20) DEFAULT 'pending',
+        sent_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+  } catch {
+    // Table might already exist
+  }
+
+  // Migration: security_alerts table (login from new device/location)
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS security_alerts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        type VARCHAR(50) NOT NULL,
+        message TEXT NOT NULL,
+        ip_address VARCHAR(50),
+        user_agent TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+  } catch {
+    // Table might already exist
+  }
+
+  // Migration: allowed_domains table (admin domain management)
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS allowed_domains (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        domain VARCHAR(255) NOT NULL UNIQUE,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+  } catch {
+    // Table might already exist
+  }
+
+  // Migration: snoozed_emails table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS snoozed_emails (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        message_uid INT NOT NULL,
+        folder VARCHAR(100) NOT NULL,
+        mailbox VARCHAR(255),
+        snooze_until TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+  } catch {
+    // Table might already exist
+  }
+
+  // Migration: org branding columns
+  try {
+    await pool.query(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS logo_url VARCHAR(500)`);
+    await pool.query(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS primary_color VARCHAR(20) DEFAULT '#047857'`);
+  } catch {
+    // Columns might already exist
+  }
+
+  // Migration: webhooks table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS webhooks (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        org_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+        url VARCHAR(1000) NOT NULL,
+        events TEXT[] NOT NULL,
+        secret VARCHAR(255),
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+  } catch {
+    // Table might already exist
+  }
+
+  // Migration: password policy (password_min_length, etc. - store in app config or users)
+  try {
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ`);
+  } catch {
+    // Column might already exist
+  }
+
+  // Migration: known_devices for security alerts (avoid alerting every login)
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS known_devices (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        device_hash VARCHAR(64) NOT NULL,
+        last_seen_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(user_id, device_hash)
+      )
+    `);
+  } catch {
+    // Table might already exist
+  }
+
+  // Migration: scheduled_email_attachments (store attachment refs for scheduled emails)
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS scheduled_email_attachments (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        scheduled_email_id UUID NOT NULL REFERENCES scheduled_emails(id) ON DELETE CASCADE,
+        filename VARCHAR(255) NOT NULL,
+        content_base64 TEXT NOT NULL,
+        content_type VARCHAR(100) DEFAULT 'application/octet-stream'
+      )
+    `);
+  } catch {
+    // Table might already exist
+  }
+
   console.log('Database schema initialized');
 
   // Seed storage plans

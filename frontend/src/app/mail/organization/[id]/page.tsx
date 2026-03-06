@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter, useParams } from 'next/navigation';
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useState } from 'react';
@@ -14,6 +15,8 @@ interface Organization {
   requested_email: string;
   role: string;
   membership_status: string;
+  logo_url?: string | null;
+  primary_color?: string | null;
 }
 
 interface Member {
@@ -43,8 +46,11 @@ export default function OrganizationDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<'members' | 'emails'>('members');
+  const [tab, setTab] = useState<'members' | 'emails' | 'branding'>('members');
 
+  const [logoUrl, setLogoUrl] = useState('');
+  const [primaryColor, setPrimaryColor] = useState('#047857');
+  const [brandingLoading, setBrandingLoading] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [addEmail, setAddEmail] = useState('');
   const [newOfficialEmail, setNewOfficialEmail] = useState('');
@@ -74,6 +80,11 @@ export default function OrganizationDetailPage() {
   const members = membersData?.members ?? [];
   const officialEmails = emailsData?.officialEmails ?? [];
   const isAdmin = org?.role === 'org_admin';
+
+  useEffect(() => {
+    if (org?.logo_url !== undefined) setLogoUrl(org.logo_url || '');
+    if (org?.primary_color) setPrimaryColor(org.primary_color);
+  }, [org?.logo_url, org?.primary_color]);
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
@@ -115,6 +126,24 @@ export default function OrganizationDetailPage() {
       toast.error(err instanceof Error ? err.message : 'Failed to add member');
     } finally {
       setAddLoading(false);
+    }
+  }
+
+  async function handleSaveBranding(e: React.FormEvent) {
+    e.preventDefault();
+    if (!isAdmin) return;
+    setBrandingLoading(true);
+    try {
+      await api(`/organizations/${id}/branding`, {
+        method: 'PATCH',
+        body: JSON.stringify({ logo_url: logoUrl.trim() || null, primary_color: primaryColor }),
+      });
+      toast.success('Branding updated');
+      queryClient.invalidateQueries({ queryKey: ['organizations'] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    } finally {
+      setBrandingLoading(false);
     }
   }
 
@@ -177,6 +206,14 @@ export default function OrganizationDetailPage() {
           >
             Official Emails
           </button>
+          {isAdmin && (
+            <button
+              onClick={() => setTab('branding')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === 'branding' ? 'bg-emerald-500 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+            >
+              Branding
+            </button>
+          )}
         </div>
 
         {tab === 'members' && (
@@ -239,6 +276,30 @@ export default function OrganizationDetailPage() {
                   </tbody>
                 </table>
               )}
+            </div>
+          </div>
+        )}
+
+        {tab === 'branding' && isAdmin && (
+          <div className="space-y-6">
+            <div className="rounded-xl border border-slate-200 bg-white p-6 max-w-lg">
+              <h3 className="font-medium text-slate-800 mb-4">Organization branding</h3>
+              <form onSubmit={handleSaveBranding} className="space-y-4">
+                <div>
+                  <label className="block text-sm text-slate-600 mb-1">Logo URL</label>
+                  <input type="url" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://example.com/logo.png" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-600 mb-1">Primary color</label>
+                  <div className="flex gap-2 items-center">
+                    <input type="color" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="w-10 h-10 rounded cursor-pointer" />
+                    <input type="text" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono" />
+                  </div>
+                </div>
+                <button type="submit" disabled={brandingLoading} className="px-4 py-2 bg-emerald-500 text-white text-sm font-medium rounded-lg hover:bg-emerald-600 disabled:opacity-50">
+                  {brandingLoading ? 'Saving…' : 'Save branding'}
+                </button>
+              </form>
             </div>
           </div>
         )}

@@ -132,14 +132,191 @@ function SignaturesTab() {
   );
 }
 
+/* ══════════════════ TEMPLATES TAB ══════════════════ */
+function TemplatesTab() {
+  const [templates, setTemplates] = useState<{ id: string; name: string; subject: string; body_html: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newName, setNewName] = useState('');
+  const [newSubject, setNewSubject] = useState('');
+  const [newBody, setNewBody] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api<{ templates: { id: string; name: string; subject: string; body_html: string }[] }>('/templates')
+      .then((d) => setTemplates(d.templates))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newName.trim() || !newSubject.trim() || !newBody.trim()) return;
+    setSaving(true);
+    try {
+      const t = await api<{ id: string; name: string; subject: string; body_html: string }>('/templates', {
+        method: 'POST',
+        body: JSON.stringify({ name: newName.trim(), subject: newSubject.trim(), body_html: newBody.trim() }),
+      });
+      setTemplates((prev) => [...prev, t]);
+      setNewName(''); setNewSubject(''); setNewBody('');
+      toast.success('Template created');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      await api(`/templates/${id}`, { method: 'DELETE' });
+      setTemplates((prev) => prev.filter((x) => x.id !== id));
+      toast.success('Template deleted');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    }
+  }
+
+  if (loading) return <p className="text-sm text-slate-400">Loading…</p>;
+
+  return (
+    <div className="max-w-4xl space-y-6">
+      <Section title="Email templates" desc="Create reusable templates for common emails. Insert them when composing.">
+        <form onSubmit={handleCreate} className="space-y-3">
+          <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Template name" required
+            className="w-full max-w-sm px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30" />
+          <input type="text" value={newSubject} onChange={(e) => setNewSubject(e.target.value)} placeholder="Subject" required
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30" />
+          <textarea value={newBody} onChange={(e) => setNewBody(e.target.value)} placeholder="Body (HTML supported)" rows={6} required
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30 resize-none" />
+          <button type="submit" disabled={saving} className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg disabled:opacity-50">
+            {saving ? 'Creating…' : 'Add template'}
+          </button>
+        </form>
+      </Section>
+      <Section title="Your templates">
+        <div className="space-y-3">
+          {templates.length === 0 ? (
+            <p className="text-sm text-slate-500">No templates yet.</p>
+          ) : (
+            templates.map((t) => (
+              <div key={t.id} className="flex items-start justify-between gap-4 p-4 border border-slate-200 rounded-xl">
+                <div>
+                  <p className="font-medium text-slate-800">{t.name}</p>
+                  <p className="text-sm text-slate-500 mt-0.5">{t.subject}</p>
+                  <p className="text-sm text-slate-600 mt-1 line-clamp-2">{t.body_html.replace(/<[^>]+>/g, '').slice(0, 120)}…</p>
+                </div>
+                <button onClick={() => handleDelete(t.id)} className="text-sm text-red-600 hover:underline shrink-0">Delete</button>
+              </div>
+            ))
+          )}
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+/* ══════════════════ FILTERS TAB ══════════════════ */
+function FiltersTab() {
+  const [rules, setRules] = useState<{ id: string; name: string; match_from: string | null; match_subject: string | null; action_move: string | null; action_mark_read: boolean; is_active: boolean }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newMatchFrom, setNewMatchFrom] = useState('');
+  const [newMatchSubject, setNewMatchSubject] = useState('');
+  const [newActionMove, setNewActionMove] = useState('');
+  const [newActionMarkRead, setNewActionMarkRead] = useState(false);
+
+  useEffect(() => {
+    api<{ rules: typeof rules }>('/filters').then((d) => setRules(d.rules)).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  async function createRule(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      const r = await api<{ id: string; name: string; match_from: string | null; match_subject: string | null; action_move: string | null; action_mark_read: boolean; is_active: boolean }>('/filters', {
+        method: 'POST',
+        body: JSON.stringify({ name: newName || 'New rule', match_from: newMatchFrom || undefined, match_subject: newMatchSubject || undefined, action_move: newActionMove || undefined, action_mark_read: newActionMarkRead }),
+      });
+      setRules((prev) => [...prev, r]);
+      setNewName(''); setNewMatchFrom(''); setNewMatchSubject(''); setNewActionMove(''); setNewActionMarkRead(false);
+      setShowForm(false);
+      toast.success('Filter created');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    }
+  }
+
+  async function deleteRule(id: string) {
+    try {
+      await api(`/filters/${id}`, { method: 'DELETE' });
+      setRules((prev) => prev.filter((x) => x.id !== id));
+      toast.success('Filter deleted');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    }
+  }
+
+  if (loading) return <p className="text-sm text-slate-400">Loading…</p>;
+
+  return (
+    <div className="max-w-3xl">
+      <Section title="Filter rules" desc="Automatically label, move, or mark messages based on sender, subject, etc.">
+        <div className="space-y-3">
+          {rules.length === 0 ? (
+            <p className="text-sm text-slate-500">No filters. Create one to auto-organize incoming mail.</p>
+          ) : (
+            rules.map((r) => (
+              <div key={r.id} className="flex items-center justify-between p-4 border border-slate-200 rounded-xl">
+                <div>
+                  <p className="font-medium text-slate-800">{r.name} {!r.is_active && <span className="text-xs text-slate-400">(inactive)</span>}</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {r.match_from ? `From: ${r.match_from}` : ''} {r.match_subject ? `Subject: ${r.match_subject}` : ''}
+                    {r.action_move ? ` → Move to ${r.action_move}` : ''} {r.action_mark_read ? ' Mark read' : ''}
+                  </p>
+                </div>
+                <button onClick={() => deleteRule(r.id)} className="text-sm text-red-600 hover:underline">Delete</button>
+              </div>
+            ))
+          )}
+        </div>
+        {!showForm ? (
+          <button onClick={() => setShowForm(true)} className="mt-3 px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+            + Create filter
+          </button>
+        ) : (
+          <form onSubmit={createRule} className="mt-4 p-4 border border-slate-200 rounded-xl space-y-3">
+            <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Rule name" className="w-full px-3 py-2 border border-slate-300 rounded text-sm" />
+            <input value={newMatchFrom} onChange={(e) => setNewMatchFrom(e.target.value)} placeholder="From contains (optional)" className="w-full px-3 py-2 border border-slate-300 rounded text-sm" />
+            <input value={newMatchSubject} onChange={(e) => setNewMatchSubject(e.target.value)} placeholder="Subject contains (optional)" className="w-full px-3 py-2 border border-slate-300 rounded text-sm" />
+            <input value={newActionMove} onChange={(e) => setNewActionMove(e.target.value)} placeholder="Move to folder (e.g. Trash) (optional)" className="w-full px-3 py-2 border border-slate-300 rounded text-sm" />
+            <label className="flex items-center gap-2"><input type="checkbox" checked={newActionMarkRead} onChange={(e) => setNewActionMarkRead(e.target.checked)} /> Mark as read</label>
+            <div className="flex gap-2">
+              <button type="submit" className="px-4 py-2 bg-emerald-500 text-white text-sm rounded-lg">Create</button>
+              <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 border border-slate-300 rounded-lg text-sm">Cancel</button>
+            </div>
+          </form>
+        )}
+      </Section>
+    </div>
+  );
+}
+
 /* ══════════════════ SECURITY TAB ══════════════════ */
 function SecurityTab() {
   const [sessions, setSessions] = useState<{ id: string; created_at: string; expires_at: string }[]>([]);
+  const [alerts, setAlerts] = useState<{ id: string; type: string; message: string; ip_address: string | null; created_at: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   function load() {
-    api<{ sessions: { id: string; created_at: string; expires_at: string }[] }>('/auth/sessions')
-      .then((d) => setSessions(d.sessions))
+    Promise.all([
+      api<{ sessions: { id: string; created_at: string; expires_at: string }[] }>('/auth/sessions'),
+      api<{ alerts: { id: string; type: string; message: string; ip_address: string | null; created_at: string }[] }>('/auth/security-alerts'),
+    ])
+      .then(([s, a]) => {
+        setSessions(s.sessions);
+        setAlerts(a.alerts);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }
@@ -158,8 +335,69 @@ function SecurityTab() {
 
   if (loading) return <p className="text-sm text-slate-400">Loading…</p>;
 
+  const [exporting, setExporting] = useState(false);
+  const [deletePass, setDeletePass] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const r = await fetch(`${process.env.NEXT_PUBLIC_API_URL || '/api/v1'}/auth/export-data`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
+      });
+      if (!r.ok) throw new Error('Export failed');
+      const data = await r.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'adventist-mail-export.json';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast.success('Data exported');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleDeleteAccount() {
+    if (!deletePass) { toast.error('Enter your password'); return; }
+    setDeleting(true);
+    try {
+      await api('/auth/delete-account', { method: 'POST', body: JSON.stringify({ password: deletePass }) });
+      toast.success('Account deactivated. Logging out...');
+      localStorage.removeItem('accessToken');
+      window.location.href = '/login';
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="max-w-4xl">
+      <Section title="Security alerts" desc="Recent sign-in activity and security events.">
+        <div className="space-y-2 mb-4">
+          {alerts.length === 0 ? (
+            <p className="text-sm text-slate-500">No security alerts.</p>
+          ) : (
+            alerts.slice(0, 10).map((a) => (
+              <div key={a.id} className="flex items-start gap-3 p-3 border border-slate-200 rounded-lg">
+                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                  <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-700">{a.message}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{new Date(a.created_at).toLocaleString()}{a.ip_address ? ` · ${a.ip_address}` : ''}</p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </Section>
       <Section title="Active sessions" desc="Manage your active sessions. Revoking a session will log that device out.">
         <div className="space-y-3">
           {sessions.length === 0 ? (
@@ -177,6 +415,19 @@ function SecurityTab() {
           )}
         </div>
       </Section>
+      <Section title="Export your data" desc="Download a copy of your data (GDPR).">
+        <button onClick={handleExport} disabled={exporting} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm rounded-lg disabled:opacity-50">
+          {exporting ? 'Exporting…' : 'Export data'}
+        </button>
+      </Section>
+      <Section title="Delete account" desc="Permanently deactivate your account. This cannot be undone.">
+        <div className="flex gap-2 items-center">
+          <input type="password" value={deletePass} onChange={(e) => setDeletePass(e.target.value)} placeholder="Enter your password" className="px-3 py-2 border border-slate-300 rounded text-sm max-w-xs" />
+          <button onClick={handleDeleteAccount} disabled={deleting || !deletePass} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg disabled:opacity-50">
+            {deleting ? 'Deleting…' : 'Delete account'}
+          </button>
+        </div>
+      </Section>
     </div>
   );
 }
@@ -185,6 +436,7 @@ function SecurityTab() {
 const TABS = [
   { id: 'general', label: 'General' },
   { id: 'signatures', label: 'Signatures' },
+  { id: 'templates', label: 'Templates' },
   { id: 'labels', label: 'Labels' },
   { id: 'inbox', label: 'Inbox' },
   { id: 'accounts', label: 'Accounts and Import' },
@@ -517,6 +769,11 @@ export default function SettingsPage() {
           <SignaturesTab />
         )}
 
+        {/* ════ TEMPLATES ════ */}
+        {tab === 'templates' && (
+          <TemplatesTab />
+        )}
+
         {/* ════ LABELS ════ */}
         {tab === 'labels' && (
           <div className="max-w-3xl">
@@ -758,49 +1015,7 @@ export default function SettingsPage() {
         )}
 
         {/* ════ FILTERS ════ */}
-        {tab === 'filters' && (
-          <div className="max-w-3xl">
-            <div className="mb-6">
-              <h3 className="text-sm font-medium text-slate-700 mb-2">The following filters are applied to all incoming mail:</h3>
-              <div className="border border-slate-200 rounded-lg p-4 text-sm text-slate-400">
-                No filters configured. Filters let you automatically label, archive, delete, or forward messages.
-              </div>
-              <button className="mt-3 px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors">
-                + Create a new filter
-              </button>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-medium text-slate-700 mb-2">
-                The following email addresses are blocked. Messages from these addresses will appear in Spam:
-              </h3>
-              <div className="border border-slate-200 rounded-xl overflow-hidden mb-3">
-                {blockedAddresses.length === 0 ? (
-                  <p className="p-4 text-sm text-slate-400">No blocked addresses.</p>
-                ) : (
-                  blockedAddresses.map((addr, i) => (
-                    <div key={i} className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-100 last:border-0">
-                      <input type="checkbox" className="rounded text-emerald-500" />
-                      <span className="text-sm text-slate-700">{addr}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="email"
-                  value={blockInput}
-                  onChange={(e) => setBlockInput(e.target.value)}
-                  placeholder="Email address to block"
-                  className="flex-1 max-w-sm px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30"
-                />
-                <button className="px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm rounded-lg transition-colors">
-                  Block
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {tab === 'filters' && <FiltersTab />}
 
         {/* ════ FORWARDING ════ */}
         {tab === 'forwarding' && (

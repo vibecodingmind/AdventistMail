@@ -25,12 +25,13 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      const res = await api<{ accessToken: string; refreshToken: string }>('/auth/login', {
+      const res = await api<{ accessToken: string; refreshToken: string; user?: { newDeviceAlert?: boolean } }>('/auth/login', {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       });
       localStorage.setItem('accessToken', res.accessToken);
       localStorage.setItem('refreshToken', res.refreshToken);
+      if (res.user?.newDeviceAlert) sessionStorage.setItem('newDeviceAlert', '1');
       router.push(redirect && redirect.startsWith('/') ? redirect : getHomeRoute());
       router.refresh();
     } catch (err) {
@@ -40,9 +41,10 @@ export default function LoginPage() {
     }
   }
 
-  function handleGoogleSuccess(tokens: { accessToken: string; refreshToken: string }) {
+  function handleGoogleSuccess(tokens: { accessToken: string; refreshToken: string; user?: { newDeviceAlert?: boolean } }) {
     localStorage.setItem('accessToken', tokens.accessToken);
     localStorage.setItem('refreshToken', tokens.refreshToken);
+    if (tokens.user?.newDeviceAlert) sessionStorage.setItem('newDeviceAlert', '1');
     router.push(redirect && redirect.startsWith('/') ? redirect : getHomeRoute());
   }
 

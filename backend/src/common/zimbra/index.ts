@@ -3,6 +3,9 @@ export {
   fetchMessageList,
   fetchMessageSource,
   getMailboxList,
+  moveMessages,
+  addFlags,
+  removeFlags,
 } from './imap.connector.js';
 export type {
   ImapConnectionOptions,

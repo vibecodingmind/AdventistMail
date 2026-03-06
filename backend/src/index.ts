@@ -13,6 +13,11 @@ import { storageRouter } from './storage/storage.routes.js';
 import { superAdminRouter } from './superadmin/superadmin.routes.js';
 import { organizationsRouter } from './organizations/organizations.routes.js';
 import { signaturesRouter } from './signatures/signatures.routes.js';
+import { templatesRouter } from './templates/templates.routes.js';
+import { filtersRouter } from './filters/filters.routes.js';
+import { scheduledRouter } from './scheduled/scheduled.routes.js';
+import { snoozeRouter } from './snooze/snooze.routes.js';
+import { processDueScheduled } from './scheduled/scheduled.service.js';
 import { initDatabase } from './db/init.js';
 
 async function start() {
@@ -67,6 +72,15 @@ app.use('/api/v1/storage', storageRouter);
 app.use('/api/v1/superadmin', superAdminRouter);
 app.use('/api/v1/organizations', organizationsRouter);
 app.use('/api/v1/signatures', signaturesRouter);
+app.use('/api/v1/templates', templatesRouter);
+app.use('/api/v1/filters', filtersRouter);
+app.use('/api/v1/scheduled', scheduledRouter);
+app.use('/api/v1/snooze', snoozeRouter);
+
+  // Process scheduled emails every minute
+  setInterval(() => {
+    processDueScheduled().catch((err) => console.warn('Scheduled send error:', (err as Error).message));
+  }, 60 * 1000);
 
   app.listen(config.port, () => {
     console.log(`Adventist Church Mail API running on port ${config.port}`);

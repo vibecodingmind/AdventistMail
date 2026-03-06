@@ -4,6 +4,9 @@ import {
   fetchMessageList,
   fetchMessageSource,
   getMailboxList,
+  moveMessages,
+  addFlags,
+  removeFlags,
 } from '../common/zimbra/index.js';
 import { sendMail } from '../common/zimbra/index.js';
 import { getImapCredentials } from '../common/redis.js';
@@ -265,6 +268,56 @@ export async function getFoldersForUser(userId: string, mailboxEmail?: string): 
     await client.connect();
     const list = await getMailboxList(client);
     return list.map((m) => ({ path: m.path }));
+  } finally {
+    await client.logout();
+  }
+}
+
+export async function bulkMoveMessages(
+  userId: string,
+  folder: string,
+  uids: number[],
+  destFolder: string,
+  mailboxEmail?: string
+): Promise<void> {
+  if (uids.length === 0) return;
+  const creds = await getImapCredentials(userId);
+  if (!creds) throw new Error('Session expired, please login again');
+
+  const connectEmail = mailboxEmail || creds.email;
+  const client = createImapClient({ user: connectEmail, password: creds.password });
+  try {
+    await client.connect();
+    const src = FOLDER_MAP[folder.toLowerCase()] || folder;
+    const dest = FOLDER_MAP[destFolder.toLowerCase()] || destFolder;
+    await moveMessages(client, src, uids, dest);
+  } finally {
+    await client.logout();
+  }
+}
+
+export async function bulkFlagMessages(
+  userId: string,
+  folder: string,
+  uids: number[],
+  flags: string[],
+  add: boolean,
+  mailboxEmail?: string
+): Promise<void> {
+  if (uids.length === 0 || flags.length === 0) return;
+  const creds = await getImapCredentials(userId);
+  if (!creds) throw new Error('Session expired, please login again');
+
+  const connectEmail = mailboxEmail || creds.email;
+  const client = createImapClient({ user: connectEmail, password: creds.password });
+  try {
+    await client.connect();
+    const mb = FOLDER_MAP[folder.toLowerCase()] || folder;
+    if (add) {
+      await addFlags(client, mb, uids, flags);
+    } else {
+      await removeFlags(client, mb, uids, flags);
+    }
   } finally {
     await client.logout();
   }

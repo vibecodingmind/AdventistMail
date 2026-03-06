@@ -128,3 +128,68 @@ adminRouter.patch(
     }
   }
 );
+
+/* ── Allowed domains ── */
+adminRouter.get('/domains', async (_req: Request, res: Response) => {
+  const { query } = await import('../db/index.js');
+  const r = await query('SELECT id, domain, is_active, created_at FROM allowed_domains ORDER BY domain');
+  res.json({ domains: r.rows });
+});
+
+adminRouter.post('/domains', [body('domain').notEmpty().trim()], async (req: AuthRequest, res: Response) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+  const domain = req.body.domain.replace(/^@/, '').toLowerCase();
+  if (!domain.includes('.')) return res.status(400).json({ error: 'Invalid domain' });
+  const { query } = await import('../db/index.js');
+  await query(
+    'INSERT INTO allowed_domains (domain) VALUES ($1) ON CONFLICT (domain) DO UPDATE SET is_active = true',
+    [domain]
+  );
+  res.json({ success: true });
+});
+
+adminRouter.delete('/domains/:id', [param('id').isUUID()], async (req: AuthRequest, res: Response) => {
+  const { query } = await import('../db/index.js');
+  await query('DELETE FROM allowed_domains WHERE id = $1', [req.params.id]);
+  res.json({ success: true });
+});
+
+/* ── Audit export ── */
+adminRouter.get('/audit-export', async (req: Request, res: Response) => {
+  const limit = Math.min(parseInt((req.query.limit as string) || '10000', 10), 50000);
+  const result = await getAuditLogs(limit, 0);
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', `attachment; filename="audit-logs-${new Date().toISOString().slice(0, 10)}.json"`);
+  res.json(result.logs);
+});
+
+/* ── Bulk user import ── */
+adminRouter.post(
+  '/users/bulk-import',
+  [body('users').isArray(), body('users.*.email').isEmail(), body('users.*.password').isLength({ min: 8 })],
+  async (req: AuthRequest, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+    const bcrypt = await import('bcryptjs');
+    const { query } = await import('../db/index.js');
+    const { v4: uuidv4 } = await import('uuid');
+    const users = req.body.users as Array<{ email: string; password: string; displayName?: string }>;
+    const results: { email: string; success: boolean; error?: string }[] = [];
+    for (const u of users) {
+      try {
+        const id = uuidv4();
+        const hash = await bcrypt.default.hash(u.password, 12);
+        const r = await query(
+          `INSERT INTO users (id, email, display_name, role, password_hash, is_verified) VALUES ($1, $2, $3, 'user', $4, true)
+           ON CONFLICT (email) DO NOTHING RETURNING id`,
+          [id, u.email.toLowerCase(), u.displayName || null, hash]
+        );
+        results.push({ email: u.email, success: (r.rowCount ?? 0) > 0 });
+      } catch (err) {
+        results.push({ email: u.email, success: false, error: err instanceof Error ? err.message : 'Unknown' });
+      }
+    }
+    res.json({ results });
+  }
+);

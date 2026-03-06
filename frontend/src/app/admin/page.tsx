@@ -284,9 +284,118 @@ function OrgEmailRequestsTab() {
   );
 }
 
+function DomainsTab() {
+  const [domains, setDomains] = useState<{ id: string; domain: string; is_active: boolean }[]>([]);
+  const [newDomain, setNewDomain] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api<{ domains: { id: string; domain: string; is_active: boolean }[] }>('/admin/domains')
+      .then((d) => setDomains(d.domains))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function addDomain(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newDomain.trim()) return;
+    try {
+      await api('/admin/domains', { method: 'POST', body: JSON.stringify({ domain: newDomain.trim() }) });
+      setNewDomain('');
+      toast.success('Domain added');
+      const d = await api<{ domains: { id: string; domain: string; is_active: boolean }[] }>('/admin/domains');
+      setDomains(d.domains);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    }
+  }
+
+  async function removeDomain(id: string) {
+    try {
+      await api(`/admin/domains/${id}`, { method: 'DELETE' });
+      setDomains((prev) => prev.filter((d) => d.id !== id));
+      toast.success('Domain removed');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    }
+  }
+
+  if (loading) return <p className="text-slate-400">Loading…</p>;
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 p-5">
+      <h2 className="text-sm font-semibold text-slate-700 mb-4">Allowed Domains</h2>
+      <p className="text-sm text-slate-500 mb-4">Manage which email domains are allowed for registration (optional; leave empty to allow all).</p>
+      <form onSubmit={addDomain} className="flex gap-2 mb-4">
+        <input value={newDomain} onChange={(e) => setNewDomain(e.target.value)} placeholder="e.g. church.org" className="px-3 py-2 border border-slate-300 rounded-lg text-sm flex-1 max-w-xs" />
+        <button type="submit" className="px-4 py-2 bg-emerald-500 text-white text-sm rounded-lg hover:bg-emerald-600">Add</button>
+      </form>
+      <div className="space-y-2">
+        {domains.length === 0 ? <p className="text-sm text-slate-500">No domains configured. All domains allowed.</p> : domains.map((d) => (
+          <div key={d.id} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
+            <span className="text-sm text-slate-700">{d.domain}</span>
+            <button onClick={() => removeDomain(d.id)} className="text-xs text-red-600 hover:underline">Remove</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BulkImportTab() {
+  const [csv, setCsv] = useState('');
+  const [results, setResults] = useState<{ email: string; success: boolean; error?: string }[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleImport() {
+    const lines = csv.trim().split(/\n/).filter(Boolean);
+    const users = lines.map((line) => {
+      const [email, password, displayName] = line.split(',').map((s) => s.trim());
+      return { email: email || '', password: password || 'ChangeMe123!', displayName: displayName || undefined };
+    }).filter((u) => u.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(u.email));
+    if (users.length === 0) { toast.error('No valid rows (format: email,password,displayName)'); return; }
+    setLoading(true);
+    setResults(null);
+    try {
+      const r = await api<{ results: { email: string; success: boolean; error?: string }[] }>('/admin/users/bulk-import', {
+        method: 'POST',
+        body: JSON.stringify({ users }),
+      });
+      setResults(r.results);
+      const ok = r.results.filter((x) => x.success).length;
+      toast.success(`Imported ${ok} of ${r.results.length} users`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Import failed');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 p-5">
+      <h2 className="text-sm font-semibold text-slate-700 mb-4">Bulk User Import</h2>
+      <p className="text-sm text-slate-500 mb-4">Paste CSV with one user per line: <code className="bg-slate-100 px-1 rounded">email,password,displayName</code>. Passwords must be at least 8 characters.</p>
+      <textarea value={csv} onChange={(e) => setCsv(e.target.value)} placeholder="user1@church.org,password123,John Doe&#10;user2@church.org,password456,Jane Smith" rows={8} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono mb-4" />
+      <button onClick={handleImport} disabled={loading} className="px-4 py-2 bg-emerald-500 text-white text-sm rounded-lg hover:bg-emerald-600 disabled:opacity-50">
+        {loading ? 'Importing…' : 'Import'}
+      </button>
+      {results && (
+        <div className="mt-4 border border-slate-200 rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-slate-50"><th className="text-left px-3 py-2">Email</th><th className="text-left px-3 py-2">Status</th></tr></thead>
+            <tbody>{results.map((r, i) => (
+              <tr key={i} className="border-t border-slate-100"><td className="px-3 py-2">{r.email}</td><td className="px-3 py-2">{r.success ? <span className="text-emerald-600">OK</span> : <span className="text-red-600">{r.error || 'Failed'}</span>}</td></tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'overview' | 'email-requests' | 'org-requests' | 'org-email-requests'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'email-requests' | 'org-requests' | 'org-email-requests' | 'domains' | 'bulk-import'>('overview');
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ['admin-stats'],
@@ -339,6 +448,8 @@ export default function AdminPage() {
             { id: 'email-requests', label: 'Email Requests', badge: pendingCount },
             { id: 'org-requests', label: 'Org Requests', badge: orgPendingCount },
             { id: 'org-email-requests', label: 'Org Email Requests', badge: orgEmailPendingCount },
+            { id: 'domains', label: 'Domains' },
+            { id: 'bulk-import', label: 'Bulk Import' },
           ].map((t) => (
             <button
               key={t.id}
@@ -447,6 +558,9 @@ export default function AdminPage() {
             <OrgEmailRequestsTab />
           </div>
         )}
+
+        {activeTab === 'domains' && <DomainsTab />}
+        {activeTab === 'bulk-import' && <BulkImportTab />}
       </main>
     </div>
   );

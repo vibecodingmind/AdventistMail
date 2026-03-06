@@ -140,6 +140,30 @@ export async function isOrgAdmin(orgId: string, userId: string): Promise<boolean
   return result.rows[0]?.role === 'org_admin';
 }
 
+export async function updateOrganizationBranding(
+  orgId: string,
+  userId: string,
+  data: { logo_url?: string; primary_color?: string }
+): Promise<{ success: boolean; error?: string }> {
+  const admin = await isOrgAdmin(orgId, userId);
+  if (!admin) return { success: false, error: 'Only org admins can update branding' };
+  const updates: string[] = [];
+  const values: unknown[] = [];
+  let i = 1;
+  if (data.logo_url !== undefined) {
+    updates.push(`logo_url = $${i++}`);
+    values.push(data.logo_url || null);
+  }
+  if (data.primary_color !== undefined) {
+    updates.push(`primary_color = $${i++}`);
+    values.push(data.primary_color || '#047857');
+  }
+  if (updates.length === 0) return { success: true };
+  values.push(orgId);
+  await query(`UPDATE organizations SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${i}`, values);
+  return { success: true };
+}
+
 export async function inviteUser(
   orgId: string,
   email: string,

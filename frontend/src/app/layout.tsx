@@ -16,6 +16,8 @@ const plusJakarta = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   title: 'Adventist Church Mail System',
   description: 'Private internal email platform for churches',
+  manifest: '/manifest.json',
+  appleWebApp: { capable: true, title: 'Adventist Mail' },
 };
 
 export default function RootLayout({

@@ -9,8 +9,11 @@ import {
   sendEmailForUser,
   getFoldersForUser,
   searchMessages,
+  bulkMoveMessages,
+  bulkFlagMessages,
 } from './mail.service.js';
 import { createAuditLog } from '../admin/audit.service.js';
+import { getSnoozedUids } from '../snooze/snooze.service.js';
 import { query as dbQuery } from '../db/index.js';
 
 export const mailRouter = Router();
@@ -43,7 +46,9 @@ mailRouter.get(
       const mailbox = req.query.mailbox as string | undefined;
 
       const messages = await getMessagesForUser(req.user.id, folder, limit, offset, mailbox);
-      res.json({ messages });
+      const snoozedUids = await getSnoozedUids(req.user.id, folder, mailbox || null);
+      const filtered = messages.filter((m) => !snoozedUids.has(m.uid));
+      res.json({ messages: filtered });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       if (msg.includes('Session expired')) {
@@ -114,8 +119,12 @@ mailRouter.get(
         return;
       }
 
+      const inline = req.query.inline === '1';
       res.setHeader('Content-Type', att.contentType);
-      res.setHeader('Content-Disposition', `attachment; filename="${att.filename}"`);
+      res.setHeader(
+        'Content-Disposition',
+        inline ? `inline; filename="${att.filename}"` : `attachment; filename="${att.filename}"`
+      );
       res.send(att.content);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -251,7 +260,9 @@ mailRouter.get(
       const mailbox = req.query.mailbox as string | undefined;
 
       const messages = await searchMessages(req.user.id, q, folder, mailbox);
-      res.json({ messages });
+      const snoozedUids = await getSnoozedUids(req.user.id, folder, mailbox || null);
+      const filtered = messages.filter((m) => !snoozedUids.has(m.uid));
+      res.json({ messages: filtered });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       res.status(500).json({ error: msg });
@@ -272,3 +283,68 @@ mailRouter.get('/folders', async (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: msg });
   }
 });
+
+// Bulk actions: move messages
+mailRouter.post(
+  '/bulk/move',
+  [
+    body('folder').notEmpty(),
+    body('uids').isArray(),
+    body('uids.*').isInt(),
+    body('destFolder').notEmpty(),
+    body('mailbox').optional().isEmail(),
+  ],
+  async (req: AuthRequest, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+      await bulkMoveMessages(
+        req.user.id,
+        req.body.folder,
+        req.body.uids,
+        req.body.destFolder,
+        req.body.mailbox
+      );
+      res.json({ success: true });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      if (msg.includes('Session expired')) res.status(401).json({ error: msg });
+      else res.status(500).json({ error: msg });
+    }
+  }
+);
+
+// Bulk actions: add/remove flags (e.g. \\Seen, \\Flagged)
+mailRouter.post(
+  '/bulk/flags',
+  [
+    body('folder').notEmpty(),
+    body('uids').isArray(),
+    body('uids.*').isInt(),
+    body('flags').isArray(),
+    body('flags.*').isString(),
+    body('add').isBoolean(),
+    body('mailbox').optional().isEmail(),
+  ],
+  async (req: AuthRequest, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+      await bulkFlagMessages(
+        req.user.id,
+        req.body.folder,
+        req.body.uids,
+        req.body.flags,
+        req.body.add,
+        req.body.mailbox
+      );
+      res.json({ success: true });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      if (msg.includes('Session expired')) res.status(401).json({ error: msg });
+      else res.status(500).json({ error: msg });
+    }
+  }
+);
