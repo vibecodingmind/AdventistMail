@@ -28,11 +28,48 @@ const ACTION_COLORS: Record<string, string> = {
   create: 'bg-blue-500/15 text-blue-400',
   update: 'bg-amber-500/15 text-amber-400',
   delete: 'bg-red-500/15 text-red-400',
-  send: 'bg-purple-500/15 text-purple-400',
+  email_sent: 'bg-purple-500/15 text-purple-400',
+  user_created: 'bg-blue-500/15 text-blue-400',
+  user_disabled: 'bg-red-500/15 text-red-400',
+  user_enabled: 'bg-emerald-500/15 text-emerald-400',
+  user_verified: 'bg-teal-500/15 text-teal-400',
+  role_assigned: 'bg-indigo-500/15 text-indigo-400',
+  password_reset: 'bg-amber-500/15 text-amber-400',
 };
 
 function actionColor(action: string) {
   return ACTION_COLORS[action] || 'bg-white/10 text-white/50';
+}
+
+function describeActivity(log: ActivityLog): string {
+  const m = log.metadata || {};
+  switch (log.action) {
+    case 'login':
+      return `Signed in${m.provider ? ` via ${m.provider}` : ''}`;
+    case 'logout':
+      return 'Signed out';
+    case 'email_sent': {
+      const to = Array.isArray(m.to) ? (m.to as string[]).join(', ') : String(m.to || '');
+      const subject = m.subject ? `"${m.subject}"` : '(no subject)';
+      return `Sent email to ${to} — ${subject}`;
+    }
+    case 'user_created':
+      return `Created account: ${m.email || ''}`;
+    case 'user_disabled':
+      return `Disabled account: ${m.email || m.target_email || ''}`;
+    case 'user_enabled':
+      return `Re-enabled account: ${m.email || m.target_email || ''}`;
+    case 'user_verified':
+      return `Verified account: ${m.email || m.target_email || ''}`;
+    case 'role_assigned':
+      return `Changed role to "${m.role || m.new_role || ''}" for ${m.email || m.target_email || ''}`;
+    case 'password_reset':
+      return `Reset password${m.email ? ` for ${m.email}` : ''}`;
+    default:
+      return Object.keys(m).length > 0
+        ? Object.entries(m).map(([k, v]) => `${k}: ${v}`).join(' · ')
+        : log.resource_type || '';
+  }
 }
 
 function timeAgo(dateStr: string) {
@@ -143,16 +180,24 @@ export default function SuperAdminDashboard() {
                 <p className="px-5 py-6 text-sm text-white/30 text-center">No activity yet</p>
               )}
               {activity.map((log) => (
-                <div key={log.id} className="px-5 py-3 flex items-center gap-4 hover:bg-white/3 transition-colors">
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${actionColor(log.action)}`}>
-                    {log.action}
+                <div key={log.id} className="px-5 py-3.5 flex items-start gap-3 hover:bg-white/3 transition-colors">
+                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 mt-0.5 ${actionColor(log.action)}`}>
+                    {log.action.replace(/_/g, ' ')}
                   </span>
-                  <span className="text-sm text-white/70 flex-1 min-w-0 truncate">
-                    {log.user_email || <span className="text-white/30 italic">system</span>}
-                    {log.resource_type && <span className="text-white/30"> · {log.resource_type}</span>}
-                  </span>
-                  <span className="text-xs text-white/25 shrink-0">{log.ip_address}</span>
-                  <span className="text-xs text-white/30 shrink-0">{timeAgo(log.created_at)}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-white/75 truncate">
+                      {log.user_email
+                        ? <span className="font-medium text-white/90">{log.user_email}</span>
+                        : <span className="text-white/30 italic">system</span>}
+                    </p>
+                    {describeActivity(log) && (
+                      <p className="text-xs text-white/40 mt-0.5 truncate">{describeActivity(log)}</p>
+                    )}
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-xs text-white/30">{timeAgo(log.created_at)}</p>
+                    {log.ip_address && <p className="text-[10px] text-white/20 font-mono mt-0.5">{log.ip_address}</p>}
+                  </div>
                 </div>
               ))}
             </div>

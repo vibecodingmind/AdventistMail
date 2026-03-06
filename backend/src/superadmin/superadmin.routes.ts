@@ -189,6 +189,64 @@ superAdminRouter.delete('/sessions/:userId', async (req: Request, res: Response)
   res.json({ success: true });
 });
 
+/* ── Storage upgrade requests ── */
+superAdminRouter.get('/storage-requests', async (_req: Request, res: Response) => {
+  const result = await query<{
+    id: string; user_id: string; user_email: string; user_display_name: string | null;
+    current_plan_name: string | null; requested_plan_name: string;
+    status: string; created_at: string;
+  }>(
+    `SELECT r.id, r.user_id, r.status, r.created_at,
+       u.email as user_email, u.display_name as user_display_name,
+       cp.name as current_plan_name, rp.name as requested_plan_name
+     FROM storage_upgrade_requests r
+     JOIN users u ON u.id = r.user_id
+     JOIN storage_plans rp ON rp.id = r.requested_plan_id
+     LEFT JOIN storage_plans cp ON cp.id = r.current_plan_id
+     WHERE r.status = 'pending'
+     ORDER BY r.created_at DESC`
+  );
+  res.json({ requests: result.rows });
+});
+
+superAdminRouter.patch(
+  '/storage-requests/:id',
+  async (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!['approved', 'rejected'].includes(status)) {
+      res.status(400).json({ error: 'Status must be approved or rejected' });
+      return;
+    }
+
+    const reqRow = await query<{ user_id: string; requested_plan_id: string }>(
+      'SELECT user_id, requested_plan_id FROM storage_upgrade_requests WHERE id = $1 AND status = $2',
+      [id, 'pending']
+    );
+    if (reqRow.rows.length === 0) {
+      res.status(404).json({ error: 'Request not found or already processed' });
+      return;
+    }
+
+    const { user_id, requested_plan_id } = reqRow.rows[0];
+
+    if (status === 'approved') {
+      await query('UPDATE users SET storage_plan_id = $1, updated_at = NOW() WHERE id = $2', [
+        requested_plan_id,
+        user_id,
+      ]);
+    }
+
+    await query(
+      "UPDATE storage_upgrade_requests SET status = $1 WHERE id = $2",
+      [status, id]
+    );
+
+    res.json({ success: true, status });
+  }
+);
+
 /* ── System info ── */
 superAdminRouter.get('/system', async (_req: Request, res: Response) => {
   const uptimeSeconds = process.uptime();

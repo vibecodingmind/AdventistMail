@@ -11,6 +11,7 @@ import {
   searchMessages,
 } from './mail.service.js';
 import { createAuditLog } from '../admin/audit.service.js';
+import { query as dbQuery } from '../db/index.js';
 
 export const mailRouter = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -164,7 +165,35 @@ mailRouter.post(
     const files = req.files as Express.Multer.File[] | undefined;
     const attachments = files?.map((f) => ({ filename: f.originalname, content: f.buffer }));
 
+    const attachmentBytes = files?.reduce((s, f) => s + f.size, 0) ?? 0;
+    const bodyBytes = Buffer.byteLength(
+      JSON.stringify({ from, to, subject, html: html || '', text: text || '' }),
+      'utf8'
+    );
+    const totalBytes = attachmentBytes + bodyBytes;
+
     try {
+      const userRow = await dbQuery<{ storage_used_bytes: string; storage_plan_id: string | null }>(
+        `SELECT COALESCE(storage_used_bytes, 0)::bigint::text as storage_used_bytes, storage_plan_id
+         FROM users WHERE id = $1`,
+        [req.user.id]
+      );
+      const used = parseInt(userRow.rows[0]?.storage_used_bytes || '0', 10);
+      let bytesLimit: number | null = 500 * 1024 * 1024;
+      if (userRow.rows[0]?.storage_plan_id) {
+        const planRow = await dbQuery<{ bytes_limit: number | null }>(
+          'SELECT bytes_limit FROM storage_plans WHERE id = $1',
+          [userRow.rows[0].storage_plan_id]
+        );
+        bytesLimit = planRow.rows[0]?.bytes_limit ?? 500 * 1024 * 1024;
+      }
+      if (bytesLimit !== null && used + totalBytes > bytesLimit) {
+        res.status(403).json({
+          error: `Storage limit reached (${Math.round(used / 1024 / 1024)} MB / ${Math.round(bytesLimit / 1024 / 1024)} MB). Request an upgrade in Settings.`,
+        });
+        return;
+      }
+
       const result = await sendEmailForUser(req.user.id, {
         from,
         to: toArr,
@@ -189,6 +218,11 @@ mailRouter.post(
         metadata: { from, to: toArr, subject },
         ipAddress: req.ip,
       });
+
+      await dbQuery(
+        'UPDATE users SET storage_used_bytes = COALESCE(storage_used_bytes, 0) + $1 WHERE id = $2',
+        [totalBytes, req.user.id]
+      );
 
       res.json({ success: true, messageId: result.messageId });
     } catch (err) {

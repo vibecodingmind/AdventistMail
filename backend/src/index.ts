@@ -8,6 +8,7 @@ import { usersRouter } from './users/users.routes.js';
 import { sharedMailboxesRouter } from './shared-mailboxes/shared-mailboxes.routes.js';
 import { adminRouter } from './admin/admin.routes.js';
 import { emailRequestsRouter } from './email-requests/email-requests.routes.js';
+import { storageRouter } from './storage/storage.routes.js';
 import { superAdminRouter } from './superadmin/superadmin.routes.js';
 import { initDatabase } from './db/init.js';
 
@@ -39,6 +40,7 @@ app.use('/api/v1/users', usersRouter);
 app.use('/api/v1/mailboxes', sharedMailboxesRouter);
 app.use('/api/v1/admin', adminRouter);
 app.use('/api/v1/email-requests', emailRequestsRouter);
+app.use('/api/v1/storage', storageRouter);
 app.use('/api/v1/superadmin', superAdminRouter);
 
   app.listen(config.port, () => {

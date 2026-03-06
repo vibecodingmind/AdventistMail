@@ -29,8 +29,33 @@ const ACTION_COLORS: Record<string, string> = {
   create: 'bg-blue-500/15 text-blue-400',
   update: 'bg-amber-500/15 text-amber-400',
   delete: 'bg-red-500/15 text-red-400',
-  send: 'bg-purple-500/15 text-purple-400',
+  email_sent: 'bg-purple-500/15 text-purple-400',
+  user_created: 'bg-blue-500/15 text-blue-400',
+  user_disabled: 'bg-red-500/15 text-red-400',
+  user_enabled: 'bg-emerald-500/15 text-emerald-400',
+  user_verified: 'bg-teal-500/15 text-teal-400',
+  role_assigned: 'bg-indigo-500/15 text-indigo-400',
+  password_reset: 'bg-amber-500/15 text-amber-400',
 };
+
+function describeLog(log: Log): string {
+  const m = log.metadata || {};
+  switch (log.action) {
+    case 'login': return `Signed in${m.provider ? ` via ${m.provider}` : ''}`;
+    case 'email_sent': {
+      const to = Array.isArray(m.to) ? (m.to as string[]).join(', ') : String(m.to || '');
+      return `To: ${to}${m.subject ? ` — "${m.subject}"` : ''}`;
+    }
+    case 'user_created': return `New account: ${m.email || ''}`;
+    case 'user_disabled': return `Disabled: ${m.email || m.target_email || ''}`;
+    case 'user_enabled': return `Re-enabled: ${m.email || m.target_email || ''}`;
+    case 'user_verified': return `Verified: ${m.email || m.target_email || ''}`;
+    case 'role_assigned': return `Role → "${m.role || m.new_role || ''}" for ${m.email || m.target_email || ''}`;
+    case 'password_reset': return m.email ? `For: ${m.email}` : '';
+    default:
+      return Object.entries(m).map(([k, v]) => `${k}: ${v}`).join(' · ');
+  }
+}
 
 function fmt(dateStr: string) {
   return new Date(dateStr).toLocaleString();
@@ -114,8 +139,8 @@ export default function SecurityPage() {
               <thead>
                 <tr className="border-b border-white/8">
                   <th className="px-5 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wide">Action</th>
-                  <th className="px-5 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wide">User</th>
-                  <th className="px-5 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wide">Resource</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wide">Account</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wide">Details</th>
                   <th className="px-5 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wide">IP</th>
                   <th className="px-5 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wide">Time</th>
                 </tr>
@@ -125,15 +150,19 @@ export default function SecurityPage() {
                 {!loading && logs.length === 0 && <tr><td colSpan={5} className="px-5 py-8 text-center text-white/30">No logs found</td></tr>}
                 {logs.map((log) => (
                   <tr key={log.id} className="hover:bg-white/3 transition-colors">
-                    <td className="px-5 py-3">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${ACTION_COLORS[log.action] || 'bg-white/10 text-white/50'}`}>
-                        {log.action}
+                    <td className="px-5 py-3 whitespace-nowrap">
+                      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${ACTION_COLORS[log.action] || 'bg-white/10 text-white/50'}`}>
+                        {log.action.replace(/_/g, ' ')}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-xs text-white/60">{log.user_email || <span className="text-white/25 italic">system</span>}</td>
-                    <td className="px-5 py-3 text-xs text-white/40">{log.resource_type || '—'}</td>
-                    <td className="px-5 py-3 text-xs text-white/30 font-mono">{log.ip_address || '—'}</td>
-                    <td className="px-5 py-3 text-xs text-white/30">{timeAgo(log.created_at)}</td>
+                    <td className="px-5 py-3 text-xs text-white/70 max-w-[160px] truncate">
+                      {log.user_email || <span className="text-white/25 italic">system</span>}
+                    </td>
+                    <td className="px-5 py-3 text-xs text-white/45 max-w-[220px] truncate">
+                      {describeLog(log) || '—'}
+                    </td>
+                    <td className="px-5 py-3 text-xs text-white/30 font-mono whitespace-nowrap">{log.ip_address || '—'}</td>
+                    <td className="px-5 py-3 text-xs text-white/30 whitespace-nowrap">{timeAgo(log.created_at)}</td>
                   </tr>
                 ))}
               </tbody>

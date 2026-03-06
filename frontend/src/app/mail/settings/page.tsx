@@ -53,6 +53,7 @@ const TABS = [
   { id: 'labels', label: 'Labels' },
   { id: 'inbox', label: 'Inbox' },
   { id: 'accounts', label: 'Accounts and Import' },
+  { id: 'storage', label: 'Storage' },
   { id: 'filters', label: 'Filters and Blocked Addresses' },
   { id: 'forwarding', label: 'Forwarding and POP/IMAP' },
   { id: 'advanced', label: 'Advanced' },
@@ -117,6 +118,30 @@ export default function SettingsPage() {
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('light');
   const [accent, setAccent] = useState('emerald');
 
+  // Storage
+  const [usage, setUsage] = useState<{
+    planName: string;
+    planId: string | null;
+    bytesUsed: number;
+    bytesLimit: number | null;
+    percentage: number;
+    hasPendingUpgrade: boolean;
+  } | null>(null);
+  const [plans, setPlans] = useState<{ id: string; name: string; bytes_limit: number | null; price_label: string }[]>([]);
+  const [upgradeLoading, setUpgradeLoading] = useState(false);
+
+  useEffect(() => {
+    if (tab === 'storage') {
+      Promise.all([
+        api<{ planName: string; planId: string | null; bytesUsed: number; bytesLimit: number | null; percentage: number; hasPendingUpgrade: boolean }>('/storage/usage'),
+        api<{ plans: { id: string; name: string; bytes_limit: number | null; price_label: string }[] }>('/storage/plans'),
+      ]).then(([u, p]) => {
+        setUsage(u);
+        setPlans(p.plans.filter((pl) => pl.name !== 'Unlimited'));
+      }).catch(() => {});
+    }
+  }, [tab]);
+
   useEffect(() => {
     const saved = localStorage.getItem('mail_settings');
     if (saved) {
@@ -168,6 +193,30 @@ export default function SettingsPage() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to change password');
     }
+  }
+
+  async function requestUpgrade(planId: string) {
+    setUpgradeLoading(true);
+    try {
+      await api('/storage/upgrade', {
+        method: 'POST',
+        body: JSON.stringify({ requestedPlanId: planId }),
+      });
+      toast.success('Upgrade request submitted. A Super Admin will review it shortly.');
+      setUsage((u) => (u ? { ...u, hasPendingUpgrade: true } : null));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to submit request');
+    } finally {
+      setUpgradeLoading(false);
+    }
+  }
+
+  function fmtBytes(n: number | null): string {
+    if (n === null || n === undefined) return 'Unlimited';
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`;
+    if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(1)} MB`;
+    return `${(n / 1024 ** 3).toFixed(1)} GB`;
   }
 
   const accents = [
@@ -495,6 +544,70 @@ export default function SettingsPage() {
               <p className="text-sm text-slate-500">No delegates configured.</p>
               <button className="mt-2 text-sm text-emerald-600 hover:underline">Add another account</button>
             </Section>
+          </div>
+        )}
+
+        {/* ════ STORAGE ════ */}
+        {tab === 'storage' && (
+          <div className="max-w-4xl">
+            <Section title="Storage" desc="Your mailbox storage usage and plan">
+              <div className="space-y-4">
+                {usage ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-slate-700">
+                        <span className="font-medium">{usage.planName}</span> plan
+                        {usage.hasPendingUpgrade && (
+                          <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Upgrade pending</span>
+                        )}
+                      </p>
+                      <p className="text-sm text-slate-600">
+                        {fmtBytes(usage.bytesUsed)} / {fmtBytes(usage.bytesLimit)}
+                      </p>
+                    </div>
+                    <div className="h-2.5 bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          usage.percentage >= 95 ? 'bg-red-500' : usage.percentage >= 70 ? 'bg-amber-500' : 'bg-emerald-500'
+                        }`}
+                        style={{ width: `${Math.min(100, usage.percentage)}%` }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-500">Loading…</p>
+                )}
+              </div>
+            </Section>
+
+            {usage && !usage.hasPendingUpgrade && plans.length > 0 && (
+              <Section title="Upgrade plan" desc="Request more storage — a Super Admin will approve">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {plans
+                    .filter((p) => p.name !== usage.planName)
+                    .map((p) => (
+                      <div
+                        key={p.id}
+                        className="p-4 rounded-xl border-2 border-slate-200 hover:border-emerald-300 transition-colors"
+                      >
+                        <p className="font-semibold text-slate-800">{p.name}</p>
+                        <p className="text-sm text-slate-500 mt-1">{fmtBytes(p.bytes_limit)}</p>
+                        <button
+                          onClick={() => requestUpgrade(p.id)}
+                          disabled={upgradeLoading}
+                          className="mt-3 w-full px-3 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+                        >
+                          {upgradeLoading ? 'Requesting…' : 'Request Upgrade'}
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              </Section>
+            )}
+
+            {usage?.hasPendingUpgrade && (
+              <p className="text-sm text-slate-500 pt-2">Your upgrade request is pending. A Super Admin will review it shortly.</p>
+            )}
           </div>
         )}
 
