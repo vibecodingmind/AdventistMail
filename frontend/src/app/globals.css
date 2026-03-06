@@ -3,11 +3,12 @@
 @tailwind utilities;
 
 :root {
-  --foreground: #202124;
-  --background: #ffffff;
+  --foreground: #1e293b;
+  --background: #f8fafc;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
+  font-feature-settings: "rlig" 1, "calt" 1;
 }
