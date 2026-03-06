@@ -4,13 +4,15 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
 import { IconNavBar } from '@/components/IconNavBar';
+import { getTokenRole } from '@/lib/api';
 
 export default function MailLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
-    if (!token) router.push('/login');
+    if (!token) { router.push('/login'); return; }
+    if (getTokenRole() === 'super_admin') { router.replace('/superadmin'); return; }
   }, [router]);
 
   return (

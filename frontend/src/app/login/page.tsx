@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { api } from '@/lib/api';
+import { api, getHomeRoute } from '@/lib/api';
 
 const hasGoogleClientId = !!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
@@ -29,7 +29,7 @@ export default function LoginPage() {
       });
       localStorage.setItem('accessToken', res.accessToken);
       localStorage.setItem('refreshToken', res.refreshToken);
-      router.push('/mail');
+      router.push(getHomeRoute());
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
@@ -41,7 +41,7 @@ export default function LoginPage() {
   function handleGoogleSuccess(tokens: { accessToken: string; refreshToken: string }) {
     localStorage.setItem('accessToken', tokens.accessToken);
     localStorage.setItem('refreshToken', tokens.refreshToken);
-    router.push('/mail');
+    router.push(getHomeRoute());
   }
 
   return (

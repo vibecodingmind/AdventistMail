@@ -5,6 +5,22 @@ function getToken(): string | null {
   return localStorage.getItem('accessToken');
 }
 
+export function getTokenRole(): string | null {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.role || null;
+  } catch {
+    return null;
+  }
+}
+
+export function getHomeRoute(): string {
+  const role = getTokenRole();
+  return role === 'super_admin' ? '/superadmin' : '/mail';
+}
+
 export async function api<T>(
   path: string,
   options: RequestInit = {}
