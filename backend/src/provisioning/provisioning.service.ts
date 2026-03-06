@@ -99,7 +99,7 @@ export async function checkMailboxExists(email: string): Promise<boolean> {
           body: JSON.stringify({ action: 'check', email }),
         });
         if (!res.ok) return false;
-        const data = await res.json();
+        const data = (await res.json()) as { exists?: boolean };
         return !!data.exists;
       } catch {
         return false;
