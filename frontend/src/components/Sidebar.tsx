@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useState } from 'react';
+import { ThemeToggle } from './ThemeToggle';
 
 interface Mailbox {
   id: string;
@@ -64,7 +65,9 @@ function NavLink({ href, icon, children }: { href: string; icon: React.ReactNode
     <Link
       href={href}
       className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-        active ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+        active
+          ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300'
+          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200'
       }`}
     >
       {icon}
@@ -93,19 +96,22 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="w-64 flex flex-col bg-white border-r border-slate-200">
-      {/* Logo */}
-      <Link href="/mail" className="flex items-center gap-3 px-4 py-5">
-        <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-sm">
-          <span className="text-white font-bold text-xl tracking-tight">A</span>
-        </div>
-        <span className="font-semibold text-slate-800 text-lg tracking-tight">Adventist Mail</span>
-      </Link>
+    <aside className="w-64 flex flex-col bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700">
+      {/* Logo + Theme toggle */}
+      <div className="flex items-center justify-between px-4 py-5">
+        <Link href="/mail" className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-sm">
+            <span className="text-white font-bold text-xl tracking-tight">A</span>
+          </div>
+          <span className="font-semibold text-slate-800 dark:text-slate-100 text-lg tracking-tight">Adventist Mail</span>
+        </Link>
+        <ThemeToggle />
+      </div>
 
       {/* Search */}
       <form onSubmit={handleSearch} className="px-3 pb-4">
         <div className="relative">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
@@ -113,15 +119,15 @@ export function Sidebar() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search something..."
-            className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border-0 rounded-lg text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-colors"
+            className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-0 rounded-lg text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white dark:focus:bg-slate-800 transition-colors"
           />
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">⌘S</span>
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 dark:text-slate-500">⌘S</span>
         </div>
       </form>
 
       {/* Menu */}
       <nav className="flex-1 px-3 space-y-0.5">
-        <p className="px-3 mb-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">Menu</p>
+        <p className="px-3 mb-2 text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Menu</p>
         <NavLink href="/mail" icon={icons.inbox}>Inbox</NavLink>
         <NavLink href="/mail/sent" icon={icons.sent}>Sent</NavLink>
         <NavLink href="/mail/drafts" icon={icons.drafts}>Drafts</NavLink>
@@ -132,14 +138,14 @@ export function Sidebar() {
 
       {/* Shared mailboxes */}
       {sharedMailboxes.length > 0 && (
-        <div className="px-3 py-2 border-t border-slate-100">
-          <p className="px-3 mb-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">Shared</p>
+        <div className="px-3 py-2 border-t border-slate-100 dark:border-slate-700">
+          <p className="px-3 mb-2 text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Shared</p>
           <div className="space-y-0.5">
             {sharedMailboxes.map((m) => (
               <Link
                 key={m.id}
                 href={`/mail?mailbox=${encodeURIComponent(m.email)}`}
-                className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 truncate"
+                className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200 truncate"
               >
                 {icons.inbox}
                 {m.display_name || m.email}
@@ -150,8 +156,8 @@ export function Sidebar() {
       )}
 
       {/* Bottom */}
-      <div className="p-3 border-t border-slate-100 space-y-0.5">
-        <Link href="/admin" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900">
+      <div className="p-3 border-t border-slate-100 dark:border-slate-700 space-y-0.5">
+        <Link href="/admin" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200">
           {icons.settings}
           Admin
         </Link>

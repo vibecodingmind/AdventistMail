@@ -38,7 +38,7 @@ export function SearchBar() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search something..."
-          className="w-full pl-9 pr-4 py-2 bg-slate-50 border-0 rounded-lg text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-colors"
+          className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border-0 rounded-lg text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white dark:focus:bg-slate-800 transition-colors"
         />
         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">⌘S</span>
       </div>

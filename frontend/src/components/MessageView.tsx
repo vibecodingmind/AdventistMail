@@ -47,33 +47,33 @@ export function MessageView({ uid, folder, mailbox }: MessageViewProps) {
     },
   });
 
-  if (isLoading) return <div className="p-8 text-slate-500">Loading...</div>;
-  if (!data) return <div className="p-8 text-slate-500">Message not found</div>;
+  if (isLoading) return <div className="p-8 text-slate-500 dark:text-slate-400">Loading...</div>;
+  if (!data) return <div className="p-8 text-slate-500 dark:text-slate-400">Message not found</div>;
 
   return (
     <div className="p-6 max-w-3xl">
-      <h1 className="text-xl font-semibold text-slate-900 mb-4 tracking-tight">{data.subject}</h1>
-      <div className="flex flex-wrap gap-4 text-sm text-slate-600 mb-6 pb-4 border-b border-slate-200">
-        <span><strong className="text-slate-700">From:</strong> {data.from}</span>
-        <span><strong className="text-slate-700">To:</strong> {data.to}</span>
-        <span><strong className="text-slate-700">Date:</strong> {new Date(data.date).toLocaleString()}</span>
+      <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-4 tracking-tight">{data.subject}</h1>
+      <div className="flex flex-wrap gap-4 text-sm text-slate-600 dark:text-slate-400 mb-6 pb-4 border-b border-slate-200 dark:border-slate-700">
+        <span><strong className="text-slate-700 dark:text-slate-300">From:</strong> {data.from}</span>
+        <span><strong className="text-slate-700 dark:text-slate-300">To:</strong> {data.to}</span>
+        <span><strong className="text-slate-700 dark:text-slate-300">Date:</strong> {new Date(data.date).toLocaleString()}</span>
       </div>
       <div className="prose prose-slate prose-sm max-w-none">
         {data.html ? (
           <div dangerouslySetInnerHTML={{ __html: data.html }} />
         ) : (
-          <pre className="whitespace-pre-wrap font-sans text-slate-700">{data.text || '(No content)'}</pre>
+          <pre className="whitespace-pre-wrap font-sans text-slate-700 dark:text-slate-300">{data.text || '(No content)'}</pre>
         )}
       </div>
       {data.attachments.length > 0 && (
-        <div className="mt-6 pt-4 border-t border-slate-200">
-          <p className="text-sm font-medium text-slate-700 mb-2">Attachments</p>
+        <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700">
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Attachments</p>
           <div className="space-y-1">
             {data.attachments.map((att, i) => (
               <button
                 key={i}
                 onClick={() => downloadAttachment(uid, i, folder, mailbox, att.filename)}
-                className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700 hover:underline"
+                className="flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:underline"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />

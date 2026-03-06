@@ -24,11 +24,11 @@ export default function MailLayout({
   }, [router]);
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50 dark:bg-slate-900">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="h-14 flex items-center justify-between gap-4 px-6 bg-white border-b border-slate-200 shrink-0">
+        <header className="h-14 flex items-center justify-between gap-4 px-6 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 shrink-0">
           <MailboxSelector />
           <div className="flex items-center gap-3 flex-1 max-w-xl">
             <SearchBar />

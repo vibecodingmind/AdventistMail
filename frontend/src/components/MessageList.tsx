@@ -59,9 +59,9 @@ export function MessageList({ messages, selectedUid, onSelect, folder, mailbox }
   return (
     <div className="flex-1 overflow-y-auto">
       {messages.length === 0 ? (
-        <div className="p-8 text-center text-slate-500 text-sm">No messages</div>
+        <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-sm">No messages</div>
       ) : (
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-slate-100 dark:divide-slate-700">
           {messages.map((msg) => {
             const { name } = parseFrom(msg.from);
             const initials = getInitials(msg.from);
@@ -71,15 +71,15 @@ export function MessageList({ messages, selectedUid, onSelect, folder, mailbox }
                 key={msg.uid}
                 onClick={() => onSelect(msg.uid)}
                 className={clsx(
-                  'w-full text-left p-4 hover:bg-slate-50/80 transition-colors',
-                  selectedUid === msg.uid && 'bg-indigo-50/80'
+                  'w-full text-left p-4 hover:bg-slate-50/80 dark:hover:bg-slate-800/80 transition-colors',
+                  selectedUid === msg.uid && 'bg-indigo-50/80 dark:bg-indigo-500/20'
                 )}
               >
                 <div className="flex gap-3">
                   <input
                     type="checkbox"
                     onClick={(e) => e.stopPropagation()}
-                    className="mt-1 shrink-0 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    className="mt-1 shrink-0 rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500"
                   />
                   <div className={clsx(
                     'w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-medium shrink-0',
@@ -90,14 +90,14 @@ export function MessageList({ messages, selectedUid, onSelect, folder, mailbox }
                   <div className="min-w-0 flex-1">
                     <div className="flex justify-between gap-2 items-start">
                       <div className="min-w-0">
-                        <span className="font-medium text-slate-900 truncate block tracking-tight">{name}</span>
-                        <span className="text-slate-600 truncate block text-sm">• {msg.subject}</span>
+                        <span className="font-medium text-slate-900 dark:text-slate-100 truncate block tracking-tight">{name}</span>
+                        <span className="text-slate-600 dark:text-slate-400 truncate block text-sm">• {msg.subject}</span>
                       </div>
-                      <span className="text-xs text-slate-400 shrink-0 mt-0.5">
+                      <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0 mt-0.5">
                         {formatTime(msg.date)}
                       </span>
                     </div>
-                    <p className="text-sm text-slate-500 truncate mt-1">
+                    <p className="text-sm text-slate-500 dark:text-slate-400 truncate mt-1">
                       {msg.subject}
                     </p>
                   </div>
