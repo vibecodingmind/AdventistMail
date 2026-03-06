@@ -179,9 +179,114 @@ function EmailRequestsTab() {
   );
 }
 
+interface OrgRequest {
+  id: string;
+  name: string;
+  type: string;
+  requested_email: string;
+  owner_email: string;
+  created_at: string;
+}
+
+interface OrgEmailRequest {
+  id: string;
+  org_name: string;
+  requested_email: string;
+  requested_by_email: string;
+  created_at: string;
+}
+
+function OrgRequestsTab() {
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin-org-requests'],
+    queryFn: () => api<{ requests: OrgRequest[] }>('/admin/organization-requests'),
+  });
+
+  const mutate = useMutation({
+    mutationFn: ({ id, action }: { id: string; action: 'approve' | 'reject' }) =>
+      api(`/admin/organization-requests/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ action }),
+      }),
+    onSuccess: () => {
+      toast.success('Updated');
+      queryClient.invalidateQueries({ queryKey: ['admin-org-requests'] });
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed'),
+  });
+
+  const requests = data?.requests ?? [];
+
+  if (isLoading) return <p className="text-sm text-slate-400">Loading…</p>;
+  if (requests.length === 0) return <p className="text-sm text-slate-400">No pending organization requests</p>;
+
+  return (
+    <div className="space-y-3">
+      {requests.map((r) => (
+        <div key={r.id} className="border border-slate-200 rounded-xl p-4 flex items-center justify-between">
+          <div>
+            <p className="font-medium text-slate-800">{r.name}</p>
+            <p className="text-sm text-slate-500">{r.type} · {r.requested_email}</p>
+            <p className="text-xs text-slate-400 mt-1">Owner: {r.owner_email} · {new Date(r.created_at).toLocaleString()}</p>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => mutate.mutate({ id: r.id, action: 'reject' })} disabled={mutate.isPending} className="px-3 py-1.5 border border-red-200 text-red-600 text-xs font-medium rounded-lg hover:bg-red-50 disabled:opacity-50">Reject</button>
+            <button onClick={() => mutate.mutate({ id: r.id, action: 'approve' })} disabled={mutate.isPending} className="px-3 py-1.5 bg-emerald-500 text-white text-xs font-medium rounded-lg hover:bg-emerald-600 disabled:opacity-50">Approve</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function OrgEmailRequestsTab() {
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin-org-email-requests'],
+    queryFn: () => api<{ requests: OrgEmailRequest[] }>('/admin/organization-email-requests'),
+  });
+
+  const mutate = useMutation({
+    mutationFn: ({ id, action }: { id: string; action: 'approve' | 'reject' }) =>
+      api(`/admin/organization-email-requests/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ action }),
+      }),
+    onSuccess: () => {
+      toast.success('Updated');
+      queryClient.invalidateQueries({ queryKey: ['admin-org-email-requests'] });
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed'),
+  });
+
+  const requests = data?.requests ?? [];
+
+  if (isLoading) return <p className="text-sm text-slate-400">Loading…</p>;
+  if (requests.length === 0) return <p className="text-sm text-slate-400">No pending org official email requests</p>;
+
+  return (
+    <div className="space-y-3">
+      {requests.map((r) => (
+        <div key={r.id} className="border border-slate-200 rounded-xl p-4 flex items-center justify-between">
+          <div>
+            <p className="font-medium text-slate-800">{r.org_name}</p>
+            <p className="text-sm text-slate-500">Requesting: {r.requested_email}</p>
+            <p className="text-xs text-slate-400 mt-1">By: {r.requested_by_email} · {new Date(r.created_at).toLocaleString()}</p>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => mutate.mutate({ id: r.id, action: 'reject' })} disabled={mutate.isPending} className="px-3 py-1.5 border border-red-200 text-red-600 text-xs font-medium rounded-lg hover:bg-red-50 disabled:opacity-50">Reject</button>
+            <button onClick={() => mutate.mutate({ id: r.id, action: 'approve' })} disabled={mutate.isPending} className="px-3 py-1.5 bg-emerald-500 text-white text-xs font-medium rounded-lg hover:bg-emerald-600 disabled:opacity-50">Approve</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'overview' | 'email-requests'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'email-requests' | 'org-requests' | 'org-email-requests'>('overview');
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ['admin-stats'],
@@ -192,7 +297,17 @@ export default function AdminPage() {
     queryKey: ['admin-email-requests', 'pending'],
     queryFn: () => api<{ requests: EmailRequest[] }>('/email-requests?status=pending'),
   });
+  const { data: orgReqs } = useQuery({
+    queryKey: ['admin-org-requests'],
+    queryFn: () => api<{ requests: OrgRequest[] }>('/admin/organization-requests'),
+  });
+  const { data: orgEmailReqs } = useQuery({
+    queryKey: ['admin-org-email-requests'],
+    queryFn: () => api<{ requests: OrgEmailRequest[] }>('/admin/organization-email-requests'),
+  });
   const pendingCount = (pendingEmailReqs?.requests ?? []).length;
+  const orgPendingCount = (orgReqs?.requests ?? []).length;
+  const orgEmailPendingCount = (orgEmailReqs?.requests ?? []).length;
 
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
@@ -222,6 +337,8 @@ export default function AdminPage() {
           {[
             { id: 'overview', label: 'Overview' },
             { id: 'email-requests', label: 'Email Requests', badge: pendingCount },
+            { id: 'org-requests', label: 'Org Requests', badge: orgPendingCount },
+            { id: 'org-email-requests', label: 'Org Email Requests', badge: orgEmailPendingCount },
           ].map((t) => (
             <button
               key={t.id}
@@ -314,6 +431,20 @@ export default function AdminPage() {
           <div className="bg-white rounded-2xl border border-slate-200 p-5">
             <h2 className="text-sm font-semibold text-slate-700 mb-4">Email Address Requests</h2>
             <EmailRequestsTab />
+          </div>
+        )}
+
+        {activeTab === 'org-requests' && (
+          <div className="bg-white rounded-2xl border border-slate-200 p-5">
+            <h2 className="text-sm font-semibold text-slate-700 mb-4">Organization Requests</h2>
+            <OrgRequestsTab />
+          </div>
+        )}
+
+        {activeTab === 'org-email-requests' && (
+          <div className="bg-white rounded-2xl border border-slate-200 p-5">
+            <h2 className="text-sm font-semibold text-slate-700 mb-4">Organization Official Email Requests</h2>
+            <OrgEmailRequestsTab />
           </div>
         )}
       </main>

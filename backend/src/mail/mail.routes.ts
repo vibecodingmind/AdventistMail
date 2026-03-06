@@ -140,6 +140,7 @@ mailRouter.post(
     body('cc').optional().isArray(),
     body('bcc').optional().isArray(),
     body('replyTo').optional().isEmail(),
+    body('organizationId').optional().isUUID(),
   ],
   async (req: AuthRequest, res: Response) => {
     const errors = validationResult(req);
@@ -150,7 +151,7 @@ mailRouter.post(
 
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { from, to, subject, html, text, cc, bcc, replyTo } = req.body;
+    const { from, to, subject, html, text, cc, bcc, replyTo, organizationId } = req.body;
     let toArr: string[] = [];
     if (Array.isArray(to)) {
       toArr = to;
@@ -217,6 +218,7 @@ mailRouter.post(
         resourceType: 'email',
         metadata: { from, to: toArr, subject },
         ipAddress: req.ip,
+        organizationId: organizationId || undefined,
       });
 
       await dbQuery(

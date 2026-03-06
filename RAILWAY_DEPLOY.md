@@ -121,3 +121,36 @@ For production with Zimbra mail server, add these variables to the backend:
 - `ZIMBRA_SMTP_HOST`, `ZIMBRA_SMTP_PORT`
 
 Without Zimbra, users created by Admin in the dashboard can still log in (password stored in DB).
+
+---
+
+## Organizations
+
+### Registration flow
+- **Individual**: Sign up as usual → admin verifies → user can log in.
+- **Organization**: On signup, choose "Organization" → enter org name, type (Church, Ministries, Institutions, Unions), requested email, and admin details → admin approves in Admin Dashboard → org owner can log in and manage the organization.
+
+### Admin approval
+1. Log in as Admin or Super Admin.
+2. Go to **Admin** → **Org Requests** tab.
+3. Approve or reject pending organization registrations.
+4. Approve creates the org mailbox and grants the owner access.
+5. For **Org Email Requests**: when org admins request additional official emails (e.g. info@church.org), approve those in the **Org Email Requests** tab.
+
+### Org management
+- Org owners: **Organizations** (in sidebar) → select org → Manage **Members** (invite, add) and **Official Emails** (request new addresses).
+
+---
+
+## Health check
+
+`GET /health` returns `{ status: 'ok', timestamp: '...' }`. Use this for Railway health checks or monitoring.
+
+---
+
+## Deployment verification
+
+After deployment, verify:
+1. **Health**: `curl https://your-backend.up.railway.app/health`
+2. **Login**: Individual and org signup → admin approval → login.
+3. **Org flow**: Register org → admin approve → org admin invites member → member accepts at `/invite?token=...`.

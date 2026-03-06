@@ -125,6 +125,130 @@ export async function initDatabase(): Promise<void> {
     // Table might already exist
   }
 
+  // Migration: organizations table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS organizations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        requested_email VARCHAR(255) NOT NULL,
+        owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        mailbox_id UUID REFERENCES mailboxes(id),
+        is_verified BOOLEAN DEFAULT false,
+        status VARCHAR(20) DEFAULT 'pending',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await pool.query(`
+      ALTER TABLE organizations ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending'
+    `);
+  } catch {
+    // Table might already exist
+  }
+
+  // Migration: organization_id on audit_logs
+  try {
+    await pool.query(`
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id) ON DELETE SET NULL
+    `);
+  } catch {
+    // Column might already exist - try without FK
+    try {
+      await pool.query(`ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS organization_id UUID`);
+    } catch {
+      // Ignore
+    }
+  }
+
+  // Migration: organization_members table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS organization_members (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        role VARCHAR(50) NOT NULL DEFAULT 'org_member',
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
+        invited_by UUID REFERENCES users(id),
+        joined_at TIMESTAMPTZ DEFAULT NOW(),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(org_id, user_id)
+      )
+    `);
+  } catch {
+    // Table might already exist
+  }
+
+  // Migration: organization_invites table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS organization_invites (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        email VARCHAR(255) NOT NULL,
+        token VARCHAR(255) NOT NULL UNIQUE,
+        invited_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        status VARCHAR(20) DEFAULT 'pending',
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+  } catch {
+    // Table might already exist
+  }
+
+  // Migration: organization_email_requests table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS organization_email_requests (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        requested_email VARCHAR(255) NOT NULL,
+        requested_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        status VARCHAR(20) DEFAULT 'pending',
+        mailbox_id UUID REFERENCES mailboxes(id),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+  } catch {
+    // Table might already exist
+  }
+
+  // Migration: user_signatures table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_signatures (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(100) NOT NULL,
+        content TEXT NOT NULL,
+        is_default BOOLEAN DEFAULT false,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+  } catch {
+    // Table might already exist
+  }
+
+  // Migration: organization_signatures table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS organization_signatures (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        name VARCHAR(100) NOT NULL,
+        content TEXT NOT NULL,
+        is_default BOOLEAN DEFAULT false,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+  } catch {
+    // Table might already exist
+  }
+
   console.log('Database schema initialized');
 
   // Seed storage plans

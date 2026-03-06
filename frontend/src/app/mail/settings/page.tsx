@@ -47,12 +47,148 @@ function Section({ title, desc, children }: { title: string; desc?: string; chil
   );
 }
 
+/* ══════════════════ SIGNATURES TAB ══════════════════ */
+function SignaturesTab() {
+  const [signatures, setSignatures] = useState<{ id: string; name: string; content: string; is_default: boolean }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newName, setNewName] = useState('');
+  const [newContent, setNewContent] = useState('');
+  const [newDefault, setNewDefault] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api<{ signatures: { id: string; name: string; content: string; is_default: boolean }[] }>('/signatures')
+      .then((d) => setSignatures(d.signatures))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newName.trim() || !newContent.trim()) return;
+    setSaving(true);
+    try {
+      const sig = await api<{ id: string; name: string; content: string; is_default: boolean }>('/signatures', {
+        method: 'POST',
+        body: JSON.stringify({ name: newName.trim(), content: newContent.trim(), isDefault: newDefault }),
+      });
+      setSignatures((s) => [...s, sig]);
+      setNewName(''); setNewContent(''); setNewDefault(false);
+      toast.success('Signature created');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      await api(`/signatures/${id}`, { method: 'DELETE' });
+      setSignatures((s) => s.filter((x) => x.id !== id));
+      toast.success('Signature deleted');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    }
+  }
+
+  if (loading) return <p className="text-sm text-slate-400">Loading…</p>;
+
+  return (
+    <div className="max-w-4xl space-y-6">
+      <Section title="Manage signatures" desc="Create and manage email signatures. Choose one when composing.">
+        <form onSubmit={handleCreate} className="space-y-3">
+          <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Signature name" required
+            className="w-full max-w-sm px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30" />
+          <textarea value={newContent} onChange={(e) => setNewContent(e.target.value)} placeholder="Signature content..." rows={4} required
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30 resize-none" />
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={newDefault} onChange={(e) => setNewDefault(e.target.checked)} className="rounded text-emerald-500" />
+            <span className="text-sm text-slate-700">Set as default</span>
+          </label>
+          <button type="submit" disabled={saving} className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg disabled:opacity-50">
+            {saving ? 'Creating…' : 'Add signature'}
+          </button>
+        </form>
+      </Section>
+      <Section title="Your signatures">
+        <div className="space-y-3">
+          {signatures.length === 0 ? (
+            <p className="text-sm text-slate-500">No signatures yet. Create one above.</p>
+          ) : (
+            signatures.map((s) => (
+              <div key={s.id} className="flex items-start justify-between gap-4 p-4 border border-slate-200 rounded-xl">
+                <div>
+                  <p className="font-medium text-slate-800">{s.name} {s.is_default && <span className="text-xs text-emerald-600">(default)</span>}</p>
+                  <p className="text-sm text-slate-600 mt-1 whitespace-pre-wrap">{s.content.slice(0, 100)}{s.content.length > 100 ? '…' : ''}</p>
+                </div>
+                <button onClick={() => handleDelete(s.id)} className="text-sm text-red-600 hover:underline">Delete</button>
+              </div>
+            ))
+          )}
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+/* ══════════════════ SECURITY TAB ══════════════════ */
+function SecurityTab() {
+  const [sessions, setSessions] = useState<{ id: string; created_at: string; expires_at: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  function load() {
+    api<{ sessions: { id: string; created_at: string; expires_at: string }[] }>('/auth/sessions')
+      .then((d) => setSessions(d.sessions))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function revoke(id: string) {
+    try {
+      await api(`/auth/sessions/${id}`, { method: 'DELETE' });
+      setSessions((s) => s.filter((x) => x.id !== id));
+      toast.success('Session revoked');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    }
+  }
+
+  if (loading) return <p className="text-sm text-slate-400">Loading…</p>;
+
+  return (
+    <div className="max-w-4xl">
+      <Section title="Active sessions" desc="Manage your active sessions. Revoking a session will log that device out.">
+        <div className="space-y-3">
+          {sessions.length === 0 ? (
+            <p className="text-sm text-slate-500">No active sessions</p>
+          ) : (
+            sessions.map((s) => (
+              <div key={s.id} className="flex items-center justify-between p-4 border border-slate-200 rounded-xl">
+                <div>
+                  <p className="text-sm text-slate-700">Session started {new Date(s.created_at).toLocaleString()}</p>
+                  <p className="text-xs text-slate-400">Expires {new Date(s.expires_at).toLocaleString()}</p>
+                </div>
+                <button onClick={() => revoke(s.id)} className="text-sm text-red-600 hover:underline">Revoke</button>
+              </div>
+            ))
+          )}
+        </div>
+      </Section>
+    </div>
+  );
+}
+
 /* ══════════════════ TABS ══════════════════ */
 const TABS = [
   { id: 'general', label: 'General' },
+  { id: 'signatures', label: 'Signatures' },
   { id: 'labels', label: 'Labels' },
   { id: 'inbox', label: 'Inbox' },
   { id: 'accounts', label: 'Accounts and Import' },
+  { id: 'security', label: 'Security' },
   { id: 'storage', label: 'Storage' },
   { id: 'filters', label: 'Filters and Blocked Addresses' },
   { id: 'forwarding', label: 'Forwarding and POP/IMAP' },
@@ -376,6 +512,11 @@ export default function SettingsPage() {
           </div>
         )}
 
+        {/* ════ SIGNATURES ════ */}
+        {tab === 'signatures' && (
+          <SignaturesTab />
+        )}
+
         {/* ════ LABELS ════ */}
         {tab === 'labels' && (
           <div className="max-w-3xl">
@@ -545,6 +686,11 @@ export default function SettingsPage() {
               <button className="mt-2 text-sm text-emerald-600 hover:underline">Add another account</button>
             </Section>
           </div>
+        )}
+
+        {/* ════ SECURITY (Sessions) ════ */}
+        {tab === 'security' && (
+          <SecurityTab />
         )}
 
         {/* ════ STORAGE ════ */}

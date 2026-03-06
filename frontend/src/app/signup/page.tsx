@@ -156,12 +156,15 @@ function Shell({
 /* ══════════════════════════════════════════════════
    MAIN COMPONENT
 ══════════════════════════════════════════════════ */
-type Step = 'name' | 'basic' | 'email' | 'password' | 'success';
-const STEP_ORDER: Step[] = ['name', 'basic', 'email', 'password'];
+type AccountType = 'individual' | 'organization';
+type Step = 'type' | 'name' | 'basic' | 'email' | 'password' | 'org-details' | 'org-admin' | 'org-password' | 'success';
+const INDIVIDUAL_STEPS: Step[] = ['name', 'basic', 'email', 'password'];
+const ORG_STEPS: Step[] = ['org-details', 'org-admin', 'org-password'];
 
 export default function SignupPage() {
   const router = useRouter();
-  const [step, setStep] = useState<Step>('name');
+  const [accountType, setAccountType] = useState<AccountType | ''>('');
+  const [step, setStep] = useState<Step>('type');
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -176,7 +179,16 @@ export default function SignupPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const stepIndex = STEP_ORDER.indexOf(step as Step);
+  // Org fields
+  const [orgName, setOrgName] = useState('');
+  const [orgType, setOrgType] = useState('');
+  const [requestedEmail, setRequestedEmail] = useState('');
+  const [ownerEmail, setOwnerEmail] = useState('');
+  const [ownerPassword, setOwnerPassword] = useState('');
+  const [ownerConfirm, setOwnerConfirm] = useState('');
+
+  const stepIndex = step === 'type' ? 0 : step === 'success' ? 99 : accountType === 'organization' ? ORG_STEPS.indexOf(step) + 1 : INDIVIDUAL_STEPS.indexOf(step) + 1;
+  const totalSteps = accountType === 'organization' ? 4 : accountType === 'individual' ? 5 : 1;
 
   async function handleSubmit() {
     if (password !== confirm) { setError("Passwords don't match."); return; }
@@ -194,6 +206,30 @@ export default function SignupPage() {
       setStep('success');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Signup failed');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleOrgSubmit() {
+    if (ownerPassword !== ownerConfirm) { setError("Passwords don't match."); return; }
+    setError('');
+    setLoading(true);
+    try {
+      await api('/auth/signup/organization', {
+        method: 'POST',
+        body: JSON.stringify({
+          orgName: orgName.trim(),
+          orgType,
+          requestedEmail: requestedEmail.trim().toLowerCase(),
+          ownerEmail: ownerEmail.trim().toLowerCase(),
+          ownerPassword,
+          ownerDisplayName: [firstName, lastName].filter(Boolean).join(' ') || undefined,
+        }),
+      });
+      setStep('success');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Organization signup failed');
     } finally {
       setLoading(false);
     }
@@ -220,7 +256,37 @@ export default function SignupPage() {
     </button>
   );
 
-  /* ── Step 1: Name ── */
+  /* ── Step 0: Account type ── */
+  if (step === 'type') {
+    return (
+      <Shell step={step} stepIndex={0} totalSteps={1} title="Create an account" subtitle="Choose how you want to sign up">
+        <form onSubmit={(e) => { e.preventDefault(); if (accountType) { setStep(accountType === 'individual' ? 'name' : 'org-details'); } }} className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
+          <label className="flex items-center gap-3 p-4 rounded-lg border border-white/20 cursor-pointer hover:bg-white/5 transition-colors">
+            <input type="radio" name="type" value="individual" checked={accountType === 'individual'} onChange={() => setAccountType('individual')} className="w-4 h-4 text-emerald-500" />
+            <div>
+              <span className="text-sm font-medium text-white">Individual</span>
+              <p className="text-xs text-white/40 mt-0.5">Personal email account for yourself</p>
+            </div>
+          </label>
+          <label className="flex items-center gap-3 p-4 rounded-lg border border-white/20 cursor-pointer hover:bg-white/5 transition-colors">
+            <input type="radio" name="type" value="organization" checked={accountType === 'organization'} onChange={() => setAccountType('organization')} className="w-4 h-4 text-emerald-500" />
+            <div>
+              <span className="text-sm font-medium text-white">Organization</span>
+              <p className="text-xs text-white/40 mt-0.5">Church, ministries, institution, or union with shared mailbox</p>
+            </div>
+          </label>
+        </div>
+        <div className="flex items-center justify-between mt-4">
+          <Link href="/login" className="text-xs text-white/40 hover:text-white/70 transition-colors">Sign in instead</Link>
+          {nextBtn('Continue', !accountType)}
+        </div>
+      </form>
+      </Shell>
+    );
+  }
+
+  /* ── Step 1: Name (Individual only) ── */
   if (step === 'name') {
     return (
       <Shell step={step} stepIndex={0} totalSteps={4} title="Create an Adventist Account" subtitle="Enter your first and last name">
@@ -340,7 +406,75 @@ export default function SignupPage() {
     );
   }
 
-  /* ── Step 4: Password ── */
+  /* ── Org Step 1: Org details ── */
+  if (step === 'org-details') {
+    return (
+      <Shell step={step} stepIndex={1} totalSteps={4} title="Organization details" subtitle="Tell us about your organization">
+        <form onSubmit={(e) => { e.preventDefault(); if (orgName.trim() && orgType && requestedEmail.trim()) setStep('org-admin'); }} className="flex flex-col gap-3">
+          <DarkInput id="orgName" placeholder="Organization name" value={orgName} onChange={setOrgName} required autoFocus />
+          <div>
+            <label className="text-xs text-white/40 -mb-1 block">Organization type</label>
+            <DarkSelect id="orgType" value={orgType} onChange={setOrgType}>
+              <option value="">Select type</option>
+              <option value="church">Church</option>
+              <option value="ministries">Ministries</option>
+              <option value="institutions">Institutions</option>
+              <option value="unions">Unions</option>
+            </DarkSelect>
+          </div>
+          <DarkInput id="requestedEmail" type="email" placeholder="Requested org email (e.g. church@example.org)" value={requestedEmail} onChange={setRequestedEmail} required />
+          <div className="flex items-center justify-between mt-4">
+            {navBtn('← Back', () => setStep('type'))}
+            {nextBtn()}
+          </div>
+        </form>
+      </Shell>
+    );
+  }
+
+  /* ── Org Step 2: Admin details ── */
+  if (step === 'org-admin') {
+    return (
+      <Shell step={step} stepIndex={2} totalSteps={4} title="Admin details" subtitle="Organization administrator account">
+        <form onSubmit={(e) => { e.preventDefault(); if (firstName.trim() && ownerEmail.trim()) setStep('org-password'); }} className="flex flex-col gap-3">
+          <div className="flex gap-3">
+            <DarkInput id="first" placeholder="First name" value={firstName} onChange={setFirstName} required autoFocus />
+            <DarkInput id="last" placeholder="Last name (optional)" value={lastName} onChange={setLastName} />
+          </div>
+          <DarkInput id="ownerEmail" type="email" placeholder="Admin email address" value={ownerEmail} onChange={setOwnerEmail} required />
+          <div className="flex items-center justify-between mt-4">
+            {navBtn('← Back', () => setStep('org-details'))}
+            {nextBtn()}
+          </div>
+        </form>
+      </Shell>
+    );
+  }
+
+  /* ── Org Step 3: Admin password ── */
+  if (step === 'org-password') {
+    return (
+      <Shell step={step} stepIndex={3} totalSteps={4} title="Create admin password" subtitle="Secure your organization account">
+        <form onSubmit={(e) => { e.preventDefault(); handleOrgSubmit(); }} className="flex flex-col gap-3">
+          <DarkInput id="ownerPassword" type={showPassword ? 'text' : 'password'} placeholder="••••••••" value={ownerPassword} onChange={setOwnerPassword} required autoFocus />
+          <DarkInput id="ownerConfirm" type={showPassword ? 'text' : 'password'} placeholder="Confirm password" value={ownerConfirm} onChange={setOwnerConfirm} required />
+          <label className="flex items-center gap-2 cursor-pointer">
+            <div onClick={() => setShowPassword(!showPassword)} className={`w-4 h-4 rounded border transition-colors flex items-center justify-center cursor-pointer shrink-0 ${showPassword ? 'bg-emerald-500 border-emerald-500' : 'border-white/30 bg-transparent'}`}>
+              {showPassword && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+            </div>
+            <span className="text-xs text-white/50">Show password</span>
+          </label>
+          {error && <p className="text-xs text-red-400">{error}</p>}
+          <div className="flex items-center justify-between mt-4">
+            {navBtn('← Back', () => { setStep('org-admin'); setError(''); })}
+            {nextBtn(loading ? 'Submitting…' : 'Submit', loading)}
+          </div>
+        </form>
+      </Shell>
+    );
+  }
+
+  /* ── Step 4: Password (Individual) ── */
   if (step === 'password') {
     return (
       <Shell step={step} stepIndex={3} totalSteps={4} title="Create a strong password" subtitle="Mix of letters, numbers and symbols">
@@ -378,8 +512,9 @@ export default function SignupPage() {
   }
 
   /* ── Step 5: Success ── */
+  const isOrg = accountType === 'organization';
   return (
-    <Shell step="success" stepIndex={4} totalSteps={4} title="Account submitted!" subtitle="Awaiting admin verification">
+    <Shell step="success" stepIndex={4} totalSteps={4} title={isOrg ? 'Organization submitted!' : 'Account submitted!'} subtitle="Awaiting admin verification">
       <div className="flex flex-col gap-6">
         <div className="flex items-start gap-4">
           <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
@@ -389,10 +524,16 @@ export default function SignupPage() {
           </div>
           <div>
             <p className="text-sm text-white/70 leading-relaxed">
-              Your request for <span className="text-emerald-400">{email || 'your account'}</span> has been submitted.
+              {isOrg ? (
+                <>Your organization <span className="text-emerald-400">{orgName || 'request'}</span> has been submitted. You can log in once an admin approves it.</>
+              ) : (
+                <>Your request for <span className="text-emerald-400">{email || 'your account'}</span> has been submitted.</>
+              )}
             </p>
             <p className="text-xs text-white/40 mt-2 leading-relaxed">
-              An administrator must approve your account before you can sign in. You will be notified once verified.
+              {isOrg
+                ? 'An administrator will verify your organization and requested email. You can sign in with your admin credentials once approved.'
+                : 'An administrator must approve your account before you can sign in. You will be notified once verified.'}
             </p>
           </div>
         </div>

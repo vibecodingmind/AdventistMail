@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { api, getHomeRoute } from '@/lib/api';
@@ -12,6 +12,8 @@ const GoogleOAuthButton = dynamic(() => import('@/components/GoogleOAuthButton')
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get('redirect');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -29,7 +31,7 @@ export default function LoginPage() {
       });
       localStorage.setItem('accessToken', res.accessToken);
       localStorage.setItem('refreshToken', res.refreshToken);
-      router.push(getHomeRoute());
+      router.push(redirect && redirect.startsWith('/') ? redirect : getHomeRoute());
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
@@ -41,7 +43,7 @@ export default function LoginPage() {
   function handleGoogleSuccess(tokens: { accessToken: string; refreshToken: string }) {
     localStorage.setItem('accessToken', tokens.accessToken);
     localStorage.setItem('refreshToken', tokens.refreshToken);
-    router.push(getHomeRoute());
+    router.push(redirect && redirect.startsWith('/') ? redirect : getHomeRoute());
   }
 
   return (

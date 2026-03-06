@@ -10,6 +10,8 @@ import {
   findOrCreateGoogleUser,
   requestPasswordReset,
   resetPassword,
+  getSessionsForUser,
+  revokeSessionById,
 } from './auth.service.js';
 import { storeImapCredentials, deleteImapCredentials } from '../common/redis.js';
 import { authMiddleware, type AuthRequest } from './auth.middleware.js';
@@ -42,6 +44,44 @@ authRouter.post(
 
     res.status(201).json({
       message: 'Account created. An admin must verify your account before you can sign in.',
+    });
+  }
+);
+
+authRouter.post(
+  '/signup/organization',
+  [
+    body('orgName').notEmpty().trim(),
+    body('orgType').isIn(['church', 'ministries', 'institutions', 'unions']).withMessage('Invalid org type'),
+    body('requestedEmail').isEmail().normalizeEmail(),
+    body('ownerEmail').isEmail().normalizeEmail(),
+    body('ownerPassword').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+    body('ownerDisplayName').optional().isString().trim(),
+  ],
+  async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ errors: errors.array() });
+      return;
+    }
+
+    const { createOrganization } = await import('../organizations/organizations.service.js');
+    const result = await createOrganization(
+      req.body.orgName,
+      req.body.orgType,
+      req.body.requestedEmail,
+      req.body.ownerEmail,
+      req.body.ownerPassword,
+      req.body.ownerDisplayName
+    );
+
+    if (!result.success) {
+      res.status(400).json({ error: result.error });
+      return;
+    }
+
+    res.status(201).json({
+      message: 'Organization submitted. An admin will verify it. You can log in once approved.',
     });
   }
 );
@@ -147,6 +187,27 @@ authRouter.get('/me', authMiddleware, async (req: AuthRequest, res) => {
     display_name: req.user.display_name,
     role: req.user.role,
   });
+});
+
+authRouter.get('/sessions', authMiddleware, async (req: AuthRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const sessions = await getSessionsForUser(req.user.id);
+    res.json({ sessions });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+authRouter.delete('/sessions/:id', authMiddleware, async (req: AuthRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const ok = await revokeSessionById(req.user.id, req.params.id);
+    if (!ok) return res.status(404).json({ error: 'Session not found' });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
 });
 
 // 2FA

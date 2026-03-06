@@ -231,6 +231,28 @@ export async function revokeRefreshToken(refreshToken: string): Promise<void> {
   await query('DELETE FROM refresh_tokens WHERE token_hash = $1', [tokenHash]);
 }
 
+export interface UserSession {
+  id: string;
+  created_at: Date;
+  expires_at: Date;
+}
+
+export async function getSessionsForUser(userId: string): Promise<UserSession[]> {
+  const result = await query<{ id: string; created_at: Date; expires_at: Date }>(
+    `SELECT id, created_at, expires_at FROM refresh_tokens WHERE user_id = $1 AND expires_at > NOW() ORDER BY created_at DESC`,
+    [userId]
+  );
+  return result.rows;
+}
+
+export async function revokeSessionById(userId: string, sessionId: string): Promise<boolean> {
+  const result = await query(
+    'DELETE FROM refresh_tokens WHERE id = $1 AND user_id = $2',
+    [sessionId, userId]
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
 export async function findOrCreateGoogleUser(
   credential: string,
   userInfo?: { sub?: string; email?: string; name?: string }

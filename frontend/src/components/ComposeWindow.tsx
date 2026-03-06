@@ -73,6 +73,7 @@ export function ComposeWindow({ onClose, defaultMailbox }: ComposeWindowProps) {
   const [activeColor, setActiveColor] = useState('#000000');
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [minimized, setMinimized] = useState(false);
+  const [selectedSignatureId, setSelectedSignatureId] = useState<string | '' | undefined>(undefined);
 
   const editorRef = useRef<HTMLDivElement>(null);
 
@@ -80,8 +81,20 @@ export function ComposeWindow({ onClose, defaultMailbox }: ComposeWindowProps) {
     queryKey: ['mailboxes'],
     queryFn: () => api<{ mailboxes: Mailbox[] }>('/mailboxes'),
   });
+  const { data: sigData } = useQuery({
+    queryKey: ['signatures'],
+    queryFn: () => api<{ signatures: { id: string; name: string; content: string; is_default: boolean }[] }>('/signatures'),
+  });
 
   const mailboxes = data?.mailboxes ?? [];
+  const signatures = sigData?.signatures ?? [];
+  const defaultSig = signatures.find((s) => s.is_default) ?? signatures[0];
+
+  useEffect(() => {
+    if (defaultSig && selectedSignatureId === undefined && signatures.length > 0) {
+      setSelectedSignatureId(defaultSig.id);
+    }
+  }, [defaultSig, selectedSignatureId, signatures.length]);
   const sendableMailboxes = mailboxes.filter((m) => m.type === 'personal' || m.can_send_as);
 
   useEffect(() => {
@@ -113,7 +126,11 @@ export function ComposeWindow({ onClose, defaultMailbox }: ComposeWindowProps) {
   }
 
   async function handleSend() {
-    const html = editorRef.current?.innerHTML ?? '';
+    let html = editorRef.current?.innerHTML ?? '';
+    const sig = selectedSignatureId === '' ? null : (selectedSignatureId ? signatures.find((s) => s.id === selectedSignatureId) : defaultSig) ?? null;
+    if (sig?.content) {
+      html += `<div style="margin-top:1.5em;padding-top:1em;border-top:1px solid #e5e7eb;font-size:0.875em;color:#6b7280;">${sig.content.replace(/\n/g, '<br>')}</div>`;
+    }
     if (!to.trim()) { toast.error('Please enter a recipient'); return; }
     setSending(true);
     try {
@@ -265,6 +282,23 @@ export function ComposeWindow({ onClose, defaultMailbox }: ComposeWindowProps) {
                   className="flex-1 text-sm text-slate-700 placeholder-slate-300 bg-transparent focus:outline-none py-1"
                 />
               </div>
+
+              {/* Signature */}
+              {signatures.length > 0 && (
+                <div className="flex items-center gap-2 px-4 py-2">
+                  <span className="text-xs font-semibold text-slate-400 w-10 shrink-0">Sig</span>
+                  <select
+                    value={selectedSignatureId ?? defaultSig?.id ?? ''}
+                    onChange={(e) => setSelectedSignatureId(e.target.value === '' ? '' : e.target.value)}
+                    className="text-sm text-slate-700 bg-transparent focus:outline-none py-1 border-0"
+                  >
+                    <option value="">No signature</option>
+                    {signatures.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}{s.is_default ? ' (default)' : ''}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* ── Formatting toolbar ── */}
               <div className="flex items-center gap-0.5 px-3 py-2 bg-slate-50 flex-wrap">

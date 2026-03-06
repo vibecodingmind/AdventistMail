@@ -8,12 +8,13 @@ export interface AuditLogInput {
   resourceId?: string;
   metadata?: Record<string, unknown>;
   ipAddress?: string;
+  organizationId?: string;
 }
 
 export async function createAuditLog(input: AuditLogInput): Promise<void> {
   await query(
-    `INSERT INTO audit_logs (id, user_id, action, resource_type, resource_id, metadata, ip_address)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    `INSERT INTO audit_logs (id, user_id, action, resource_type, resource_id, metadata, ip_address, organization_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
     [
       uuidv4(),
       input.userId || null,
@@ -22,6 +23,7 @@ export async function createAuditLog(input: AuditLogInput): Promise<void> {
       input.resourceId || null,
       input.metadata ? JSON.stringify(input.metadata) : null,
       input.ipAddress || null,
+      input.organizationId || null,
     ]
   );
 }
