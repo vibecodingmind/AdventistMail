@@ -72,6 +72,12 @@ docker-compose up -d
 
 Deploy from GitHub to get a public URL. See **[RAILWAY_DEPLOY.md](./RAILWAY_DEPLOY.md)** for step-by-step instructions.
 
+## Documentation
+
+- **[RAILWAY_DEPLOY.md](./RAILWAY_DEPLOY.md)** — Deploy to Railway step-by-step
+- **[CHURCH_ADMIN_GUIDE.md](./CHURCH_ADMIN_GUIDE.md)** — Guide for church admins (register org, verify domain, manage members)
+- **[MAIL_SERVER_GUIDE.md](./MAIL_SERVER_GUIDE.md)** — Set up your own mail server (Mail-in-a-Box, iRedMail, Zimbra, Postfix)
+
 ## Project Structure
 
 ```
@@ -95,8 +101,19 @@ adventist-church-mail/
 - `POST /api/v1/auth/login` - Login
 - `GET /api/v1/mail/messages` - List messages
 - `GET /api/v1/mail/messages/:uid` - Get message
+- `GET /api/v1/mail/threads` - List threaded conversations
 - `POST /api/v1/mail/send` - Send email
+- `POST /api/v1/mail/folders` - Create IMAP folder
+- `PATCH /api/v1/mail/folders` - Rename folder
+- `DELETE /api/v1/mail/folders` - Delete folder
 - `GET /api/v1/mailboxes` - List user's mailboxes
+- `GET /api/v1/delegates` - List delegates
+- `POST /api/v1/delegates` - Add delegate
+- `GET /api/v1/vacation` - Get vacation responder
+- `PUT /api/v1/vacation` - Update vacation responder
+- `GET /api/v1/organizations/:id/domains` - List org domains
+- `POST /api/v1/organizations/:id/domains` - Add domain
+- `POST /api/v1/organizations/:id/domains/:domainId/verify` - Verify domain
 - `GET /api/v1/users` - List users (admin)
 - `GET /api/v1/admin/stats` - Dashboard stats
 - `GET /api/v1/admin/audit-logs` - Audit logs

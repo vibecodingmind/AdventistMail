@@ -138,7 +138,14 @@ Without Zimbra, users created by Admin in the dashboard can still log in (passwo
 5. For **Org Email Requests**: when org admins request additional official emails (e.g. info@church.org), approve those in the **Org Email Requests** tab.
 
 ### Org management
-- Org owners: **Organizations** (in sidebar) → select org → Manage **Members** (invite, add) and **Official Emails** (request new addresses).
+- Org owners: **Organizations** (in sidebar) → select org → Manage **Members** (invite, add), **Official Emails** (request new addresses), and **Domains** (add and verify your church domain).
+
+### Domain verification (Phase 3)
+1. Org admin goes to **Organization → Domains** tab.
+2. Enters their church domain (e.g. `maranatha-church.org`).
+3. System shows a DNS TXT record to add: `_adventistmail.maranatha-church.org` → `adventist-mail-verify=<token>`.
+4. Admin adds the record in their DNS provider and clicks **Verify**.
+5. Once verified, the org can request email addresses on that domain (e.g. `pastor@maranatha-church.org`).
 
 ---
 
@@ -149,6 +156,8 @@ Without Zimbra, users created by Admin in the dashboard can still log in (passwo
 ---
 
 ## New features (full implementation)
+
+### Phase 1 — Core
 
 | Feature | Location |
 |---------|----------|
@@ -165,6 +174,44 @@ Without Zimbra, users created by Admin in the dashboard can still log in (passwo
 | **Bulk user import** | `POST /api/v1/admin/users/bulk-import` with `{ users: [{ email, password, displayName? }] }` |
 | **PWA** | Installable via `/manifest.json` |
 
+### Phase 2 — Enhancements
+
+| Feature | Location |
+|---------|----------|
+| **Snooze emails** | Inbox → Snooze button on messages |
+| **Keyboard shortcuts** | j/k navigate, e archive, # delete, / search |
+| **Quick reply** | Message view → Inline reply box |
+| **Security alerts** | Login from new device triggers notification |
+| **Org branding** | Organization → Branding (logo, primary color) |
+| **Password policy** | Min 8 chars, expiry tracking |
+
+### Phase 3 — Domain, Identity & Polish
+
+| Feature | Location |
+|---------|----------|
+| **Domain verification** | Organization → Domains tab (add domain, verify via DNS TXT) |
+| **Send mail as** | Settings → Accounts (shows personal + shared addresses) |
+| **Delegate access** | Settings → Accounts → Grant access (add/remove delegates) |
+| **Conversation threading** | Inbox (toggle in Settings → General → Conversation View) |
+| **Custom folders** | Sidebar → Folders section (create, rename, delete) |
+| **Vacation responder** | Settings → General → Vacation responder (saved to backend) |
+| **Mail provisioning** | Auto-provisions on org/email approval (configurable mode) |
+
+---
+
+## Mail server provisioning (Phase 3)
+
+Control how mailboxes are created when admin approves an org or email request:
+
+| Variable | Value | Description |
+|----------|-------|-------------|
+| `MAIL_PROVISIONING_MODE` | `manual` (default), `zimbra`, or `api` | How mailboxes are provisioned |
+| `PROVISIONING_WEBHOOK_URL` | URL | Required when mode is `api`; receives POST with `{ action, email }` |
+
+- **manual**: Logs the action; admin creates the mailbox on the mail server manually.
+- **zimbra**: Placeholder for Zimbra admin SOAP API integration.
+- **api**: POSTs to your webhook URL to auto-create accounts on any mail server.
+
 ---
 
 ## Deployment verification
@@ -173,3 +220,8 @@ After deployment, verify:
 1. **Health**: `curl https://your-backend.up.railway.app/health`
 2. **Login**: Individual and org signup → admin approval → login.
 3. **Org flow**: Register org → admin approve → org admin invites member → member accepts at `/invite?token=...`.
+4. **Domain flow**: Org admin → Domains tab → add domain → verify DNS → request email on that domain.
+5. **Threading**: Settings → General → Conversation View on → inbox shows grouped threads.
+6. **Custom folders**: Sidebar → "+" next to Folders → create, rename, delete.
+7. **Vacation**: Settings → General → Vacation responder → enable → save.
+8. **Delegates**: Settings → Accounts → Grant access → add delegate email.
