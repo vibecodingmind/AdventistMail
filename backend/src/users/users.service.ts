@@ -35,7 +35,7 @@ export async function createUser(
   const passwordHash = await bcrypt.hash(password, 12);
 
   await query(
-    `INSERT INTO users (id, email, display_name, role, password_hash) VALUES ($1, $2, $3, $4, $5)`,
+    `INSERT INTO users (id, email, display_name, role, password_hash, is_verified) VALUES ($1, $2, $3, $4, $5, true)`,
     [id, normalizedEmail, displayName || null, role, passwordHash]
   );
 
@@ -131,7 +131,16 @@ export async function assignUserRole(userId: string, role: UserRole): Promise<{ 
   return { success: true };
 }
 
-export async function listUsers(): Promise<Omit<User, 'two_fa_secret'>[]> {
+export async function verifyUser(userId: string): Promise<{ success: boolean; error?: string }> {
+  const result = await query(
+    'UPDATE users SET is_verified = true, updated_at = NOW() WHERE id = $1 RETURNING id',
+    [userId]
+  );
+  if (result.rows.length === 0) return { success: false, error: 'User not found' };
+  return { success: true };
+}
+
+export async function listUsers(): Promise<(Omit<User, 'two_fa_secret'> & { is_verified?: boolean })[]> {
   const result = await query<{
     id: string;
     email: string;
@@ -139,10 +148,11 @@ export async function listUsers(): Promise<Omit<User, 'two_fa_secret'>[]> {
     role: string;
     zimbra_id: string | null;
     is_active: boolean;
+    is_verified: boolean | null;
     created_at: Date;
     updated_at: Date;
   }>(
-    'SELECT id, email, display_name, role, zimbra_id, is_active, created_at, updated_at FROM users ORDER BY email'
+    'SELECT id, email, display_name, role, zimbra_id, is_active, COALESCE(is_verified, true) as is_verified, created_at, updated_at FROM users ORDER BY is_verified ASC, email'
   );
 
   return result.rows.map((row) => ({
@@ -152,6 +162,7 @@ export async function listUsers(): Promise<Omit<User, 'two_fa_secret'>[]> {
     role: row.role as UserRole,
     zimbra_id: row.zimbra_id,
     is_active: row.is_active,
+    is_verified: row.is_verified ?? true,
     created_at: row.created_at,
     updated_at: row.updated_at,
   }));

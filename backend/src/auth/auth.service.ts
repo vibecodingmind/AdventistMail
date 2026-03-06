@@ -21,7 +21,7 @@ export interface AuthUser extends Omit<User, 'two_fa_secret'> {
 export async function validateCredentials(
   email: string,
   password: string
-): Promise<{ success: boolean; user?: AuthUser }> {
+): Promise<{ success: boolean; user?: AuthUser; reason?: string }> {
   // 1. Try LDAP (Zimbra) authentication
   const ldapResult = await authenticateWithLdap(email, password);
 
@@ -46,9 +46,12 @@ export async function validateCredentials(
     };
   }
 
-  // Fallback: users created by Admin (stored password_hash in DB)
+  // Fallback: users created by Admin or self-signup (stored password_hash in DB)
   const user = await getUserByEmail(email);
   if (user?.is_active) {
+    if (!user.is_verified) {
+      return { success: false, reason: 'pending_verification' };
+    }
     const hashResult = await query<{ password_hash: string }>(
       'SELECT password_hash FROM users WHERE id = $1',
       [user.id]
@@ -68,7 +71,30 @@ export async function validateCredentials(
   return { success: false };
 }
 
-async function getUserByEmail(email: string): Promise<(User & { two_fa_secret?: string }) | null> {
+export async function signupUser(
+  email: string,
+  password: string,
+  displayName?: string
+): Promise<{ success: boolean; error?: string }> {
+  const normalizedEmail = email.toLowerCase().trim();
+
+  const existing = await query('SELECT id FROM users WHERE email = $1', [normalizedEmail]);
+  if (existing.rows.length > 0) {
+    return { success: false, error: 'Email already registered' };
+  }
+
+  const id = uuidv4();
+  const passwordHash = await bcrypt.hash(password, 12);
+
+  await query(
+    `INSERT INTO users (id, email, display_name, role, password_hash, is_verified) VALUES ($1, $2, $3, 'user', $4, false)`,
+    [id, normalizedEmail, displayName || null, passwordHash]
+  );
+
+  return { success: true };
+}
+
+async function getUserByEmail(email: string): Promise<(User & { two_fa_secret?: string; is_verified?: boolean }) | null> {
   const result = await query<{
     id: string;
     email: string;
@@ -77,10 +103,11 @@ async function getUserByEmail(email: string): Promise<(User & { two_fa_secret?: 
     zimbra_id: string | null;
     two_fa_secret: string | null;
     is_active: boolean;
+    is_verified: boolean | null;
     created_at: Date;
     updated_at: Date;
   }>(
-    'SELECT id, email, display_name, role, zimbra_id, two_fa_secret, is_active, created_at, updated_at FROM users WHERE email = $1',
+    'SELECT id, email, display_name, role, zimbra_id, two_fa_secret, is_active, COALESCE(is_verified, true) as is_verified, created_at, updated_at FROM users WHERE email = $1',
     [email.toLowerCase()]
   );
 
@@ -95,6 +122,7 @@ async function getUserByEmail(email: string): Promise<(User & { two_fa_secret?: 
     zimbra_id: row.zimbra_id,
     two_fa_secret: row.two_fa_secret ?? undefined,
     is_active: row.is_active,
+    is_verified: row.is_verified ?? true,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };

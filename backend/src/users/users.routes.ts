@@ -8,6 +8,7 @@ import {
   enableUser,
   assignUserRole,
   listUsers,
+  verifyUser,
 } from './users.service.js';
 import { createAuditLog } from '../admin/audit.service.js';
 import type { UserRole } from '../common/types.js';
@@ -116,6 +117,30 @@ usersRouter.post('/:id/disable', [param('id').isUUID()], async (req: AuthRequest
     await createAuditLog({
       userId: req.user!.id,
       action: 'user_disabled',
+      resourceType: 'user',
+      resourceId: req.params.id,
+      ipAddress: req.ip,
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
+
+// Verify user (for signup flow - admin approves new signups)
+usersRouter.post('/:id/verify', [param('id').isUUID()], async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await verifyUser(req.params.id);
+
+    if (!result.success) {
+      res.status(400).json({ error: result.error });
+      return;
+    }
+
+    await createAuditLog({
+      userId: req.user!.id,
+      action: 'user_verified',
       resourceType: 'user',
       resourceId: req.params.id,
       ipAddress: req.ip,

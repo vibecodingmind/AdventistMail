@@ -6,12 +6,42 @@ import {
   storeRefreshToken,
   verifyRefreshToken,
   revokeRefreshToken,
+  signupUser,
 } from './auth.service.js';
 import { storeImapCredentials, deleteImapCredentials } from '../common/redis.js';
 import { authMiddleware, type AuthRequest } from './auth.middleware.js';
 import { createAuditLog } from '../admin/audit.service.js';
 
 export const authRouter = Router();
+
+authRouter.post(
+  '/signup',
+  [
+    body('email').isEmail().normalizeEmail(),
+    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+    body('displayName').optional().isString().trim(),
+  ],
+  async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ errors: errors.array() });
+      return;
+    }
+
+    const { email, password, displayName } = req.body;
+
+    const result = await signupUser(email, password, displayName);
+
+    if (!result.success) {
+      res.status(400).json({ error: result.error });
+      return;
+    }
+
+    res.status(201).json({
+      message: 'Account created. An admin must verify your account before you can sign in.',
+    });
+  }
+);
 
 authRouter.post(
   '/login',
@@ -32,6 +62,10 @@ authRouter.post(
     const result = await validateCredentials(email, password);
 
     if (!result.success || !result.user) {
+      if ('reason' in result && result.reason === 'pending_verification') {
+        res.status(403).json({ error: 'Account pending verification. An admin must verify your account before you can sign in.' });
+        return;
+      }
       res.status(401).json({ error: 'Invalid email or password' });
       return;
     }

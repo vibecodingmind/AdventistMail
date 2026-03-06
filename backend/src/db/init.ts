@@ -26,6 +26,16 @@ export async function initDatabase(): Promise<void> {
     // Column might already exist
   }
 
+  // Migration: add is_verified for signup flow (admin must verify new signups)
+  try {
+    await pool.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT true
+    `);
+    await pool.query(`UPDATE users SET is_verified = true WHERE is_verified IS NULL`);
+  } catch {
+    // Column might already exist
+  }
+
   console.log('Database schema initialized');
 
   // Seed default admin user if not exists (for Railway/deployment)
@@ -43,9 +53,9 @@ async function seedAdminUser(): Promise<void> {
   const id = uuidv4();
 
   await pool.query(
-    `INSERT INTO users (id, email, display_name, role, password_hash)
-     VALUES ($1, $2, $3, $4, $5)
-     ON CONFLICT (email) DO UPDATE SET password_hash = $5, role = $4`,
+    `INSERT INTO users (id, email, display_name, role, password_hash, is_verified)
+     VALUES ($1, $2, $3, $4, $5, true)
+     ON CONFLICT (email) DO UPDATE SET password_hash = $5, role = $4, is_verified = true`,
     [id, email, 'System Admin', 'super_admin', passwordHash]
   );
   console.log('Admin user ready: admin@church.org (change password after first login)');
