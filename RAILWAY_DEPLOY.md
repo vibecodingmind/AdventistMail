@@ -2,6 +2,8 @@
 
 Deploy your app from GitHub to Railway in a few steps.
 
+> **Quick setup:** See [RAILWAY_SETUP.md](./RAILWAY_SETUP.md) for copy-paste variable values for `adventistmail-production.up.railway.app`.
+
 ## Prerequisites
 
 - [Railway](https://railway.app) account
