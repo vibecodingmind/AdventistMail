@@ -321,6 +321,96 @@ export async function findOrCreateGoogleUser(
   }
 }
 
+async function sendPasswordResetEmail(to: string, resetUrl: string): Promise<void> {
+  const smtpHost = config.zimbra.smtp.host;
+  const smtpUser = config.smtp.user;
+  const smtpPass = config.smtp.pass;
+
+  const html = `
+    <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0E1829;color:#e2e8f0;border-radius:12px;">
+      <h2 style="color:#34d399;margin-top:0;">Reset your password</h2>
+      <p style="color:#94a3b8;">You requested a password reset for your Adventist Church Mail account.</p>
+      <p style="color:#94a3b8;">Click the button below to set a new password. This link expires in <strong style="color:#e2e8f0;">1 hour</strong>.</p>
+      <a href="${resetUrl}" style="display:inline-block;margin:24px 0;padding:12px 28px;background:#1E2D45;color:#34d399;text-decoration:none;border-radius:8px;font-weight:600;border:1px solid rgba(52,211,153,0.3);">
+        Reset Password
+      </a>
+      <p style="color:#475569;font-size:12px;">If you didn't request this, ignore this email — your password won't change.</p>
+      <p style="color:#475569;font-size:12px;">Or copy this link: <a href="${resetUrl}" style="color:#64748b;">${resetUrl}</a></p>
+    </div>
+  `;
+
+  if (!smtpHost || smtpHost === 'localhost' || smtpHost === '127.0.0.1' || !smtpUser) {
+    console.log(`[Password Reset] Reset link for ${to}: ${resetUrl}`);
+    return;
+  }
+
+  try {
+    const nodemailer = await import('nodemailer');
+    const transporter = nodemailer.default.createTransport({
+      host: smtpHost,
+      port: config.zimbra.smtp.port,
+      secure: config.zimbra.smtp.secure,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+    await transporter.sendMail({
+      from: `"Adventist Church Mail" <${smtpUser}>`,
+      to,
+      subject: 'Reset your Adventist Church Mail password',
+      html,
+    });
+  } catch (err) {
+    console.error('Failed to send password reset email:', err);
+  }
+}
+
+export async function requestPasswordReset(
+  email: string
+): Promise<{ success: boolean; error?: string }> {
+  const user = await getUserByEmail(email);
+
+  if (!user) {
+    return { success: true };
+  }
+
+  const token = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+  await query('DELETE FROM password_reset_tokens WHERE user_id = $1', [user.id]);
+  await query(
+    'INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)',
+    [user.id, tokenHash, expiresAt]
+  );
+
+  const resetUrl = `${config.app.url}/reset-password?token=${token}`;
+  await sendPasswordResetEmail(user.email, resetUrl);
+
+  return { success: true };
+}
+
+export async function resetPassword(
+  token: string,
+  newPassword: string
+): Promise<{ success: boolean; error?: string }> {
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+  const result = await query<{ user_id: string; expires_at: Date; used_at: Date | null }>(
+    'SELECT user_id, expires_at, used_at FROM password_reset_tokens WHERE token_hash = $1',
+    [tokenHash]
+  );
+
+  const row = result.rows[0];
+  if (!row) return { success: false, error: 'Invalid or expired reset link.' };
+  if (row.used_at) return { success: false, error: 'This reset link has already been used.' };
+  if (new Date() > row.expires_at) return { success: false, error: 'Reset link has expired. Please request a new one.' };
+
+  const newHash = await bcrypt.hash(newPassword, 12);
+  await query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [newHash, row.user_id]);
+  await query('UPDATE password_reset_tokens SET used_at = NOW() WHERE token_hash = $1', [tokenHash]);
+
+  return { success: true };
+}
+
 export async function getUserById(userId: string): Promise<User | null> {
   const result = await query<{
     id: string;

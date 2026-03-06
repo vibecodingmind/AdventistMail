@@ -64,6 +64,22 @@ export async function initDatabase(): Promise<void> {
     // Table might already exist
   }
 
+  // Migration: password_reset_tokens table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_hash VARCHAR(255) NOT NULL UNIQUE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        used_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+  } catch {
+    // Table might already exist
+  }
+
   console.log('Database schema initialized');
 
   // Seed default admin user if not exists (for Railway/deployment)

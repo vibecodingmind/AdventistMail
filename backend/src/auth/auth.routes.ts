@@ -8,6 +8,8 @@ import {
   revokeRefreshToken,
   signupUser,
   findOrCreateGoogleUser,
+  requestPasswordReset,
+  resetPassword,
 } from './auth.service.js';
 import { storeImapCredentials, deleteImapCredentials } from '../common/redis.js';
 import { authMiddleware, type AuthRequest } from './auth.middleware.js';
@@ -255,6 +257,41 @@ authRouter.post(
       expiresIn,
       is_new: result.is_new,
     });
+  }
+);
+
+authRouter.post(
+  '/forgot-password',
+  [body('email').isEmail().normalizeEmail()],
+  async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ error: 'Valid email required' });
+      return;
+    }
+    await requestPasswordReset(req.body.email);
+    res.json({ message: 'If that email exists, a reset link has been sent.' });
+  }
+);
+
+authRouter.post(
+  '/reset-password',
+  [
+    body('token').notEmpty(),
+    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+  ],
+  async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ errors: errors.array() });
+      return;
+    }
+    const result = await resetPassword(req.body.token, req.body.password);
+    if (!result.success) {
+      res.status(400).json({ error: result.error });
+      return;
+    }
+    res.json({ message: 'Password updated successfully.' });
   }
 );
 

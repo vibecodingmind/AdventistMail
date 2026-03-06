@@ -37,6 +37,10 @@ export const config = {
     url: process.env.APP_URL || 'http://localhost:3000',
     apiUrl: process.env.API_URL || 'http://localhost:3001',
   },
+  smtp: {
+    user: process.env.SMTP_USER || '',
+    pass: process.env.SMTP_PASS || '',
+  },
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID || '',
   },

@@ -132,9 +132,9 @@ export default function LoginPage() {
 
           {/* Footer links */}
           <div className="mt-5">
-            <button className="text-xs text-white/30 hover:text-white/60 transition-colors block">
+            <Link href="/forgot-password" className="text-xs text-white/30 hover:text-white/60 transition-colors">
               Forgot my password
-            </button>
+            </Link>
           </div>
         </div>
 
