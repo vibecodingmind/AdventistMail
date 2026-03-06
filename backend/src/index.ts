@@ -17,6 +17,8 @@ import { templatesRouter } from './templates/templates.routes.js';
 import { filtersRouter } from './filters/filters.routes.js';
 import { scheduledRouter } from './scheduled/scheduled.routes.js';
 import { snoozeRouter } from './snooze/snooze.routes.js';
+import { delegatesRouter } from './delegates/delegates.routes.js';
+import { vacationRouter } from './vacation/vacation.routes.js';
 import { processDueScheduled } from './scheduled/scheduled.service.js';
 import { initDatabase } from './db/init.js';
 
@@ -76,6 +78,8 @@ app.use('/api/v1/templates', templatesRouter);
 app.use('/api/v1/filters', filtersRouter);
 app.use('/api/v1/scheduled', scheduledRouter);
 app.use('/api/v1/snooze', snoozeRouter);
+app.use('/api/v1/delegates', delegatesRouter);
+app.use('/api/v1/vacation', vacationRouter);
 
   // Process scheduled emails every minute
   setInterval(() => {

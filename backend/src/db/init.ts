@@ -422,6 +422,59 @@ export async function initDatabase(): Promise<void> {
     // Table might already exist
   }
 
+  // Migration: organization_domains table (domain verification for orgs)
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS organization_domains (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        domain VARCHAR(255) NOT NULL UNIQUE,
+        verification_token VARCHAR(64) NOT NULL,
+        verified_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+  } catch {
+    // Table might already exist
+  }
+
+  // Migration: delegates table (send-as and delegate access)
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS delegates (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        delegate_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        can_read BOOLEAN DEFAULT true,
+        can_send_as BOOLEAN DEFAULT false,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(owner_id, delegate_id)
+      )
+    `);
+  } catch {
+    // Table might already exist
+  }
+
+  // Migration: vacation_responders table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS vacation_responders (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+        is_active BOOLEAN DEFAULT false,
+        subject VARCHAR(500) NOT NULL DEFAULT '',
+        message TEXT NOT NULL DEFAULT '',
+        start_date DATE,
+        end_date DATE,
+        last_response JSONB DEFAULT '{}',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+  } catch {
+    // Table might already exist
+  }
+
   console.log('Database schema initialized');
 
   // Seed storage plans

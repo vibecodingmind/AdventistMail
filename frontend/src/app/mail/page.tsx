@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { MessageList } from '@/components/MessageList';
+import { ThreadList } from '@/components/ThreadList';
 import { MessageView } from '@/components/MessageView';
+import { ThreadView } from '@/components/ThreadView';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -19,25 +21,73 @@ interface Message {
   flags: string[];
 }
 
+interface Thread {
+  threadId: string;
+  messages: Message[];
+  latestDate: string;
+  subject: string;
+  participants: string[];
+  snippet: string;
+  unreadCount: number;
+}
+
+function getConversationViewSetting(): boolean {
+  if (typeof window === 'undefined') return true;
+  try {
+    const saved = localStorage.getItem('mail_settings');
+    if (saved) {
+      const s = JSON.parse(saved);
+      if (s.conversationView !== undefined) return s.conversationView;
+    }
+  } catch {}
+  return true;
+}
+
 export default function MailPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const queryClient = useQueryClient();
   const mailbox = searchParams.get('mailbox') || undefined;
+  const folder = searchParams.get('folder') || 'inbox';
   const [selectedUid, setSelectedUid] = useState<number | null>(null);
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [conversationView, setConversationView] = useState(true);
+
+  useEffect(() => {
+    setConversationView(getConversationViewSetting());
+  }, []);
+
+  useEffect(() => {
+    setSelectedUid(null);
+    setSelectedThreadId(null);
+  }, [folder, mailbox]);
 
   const { data } = useQuery({
-    queryKey: ['messages', 'inbox', mailbox],
+    queryKey: ['messages', folder, mailbox],
     queryFn: () => {
-      const params = new URLSearchParams({ folder: 'inbox' });
+      const params = new URLSearchParams({ folder });
       if (mailbox) params.set('mailbox', mailbox);
       return api<{ messages: Message[] }>(`/mail/messages?${params}`);
     },
+    enabled: !conversationView,
+  });
+
+  const { data: threadData } = useQuery({
+    queryKey: ['threads', folder, mailbox],
+    queryFn: () => {
+      const params = new URLSearchParams({ folder });
+      if (mailbox) params.set('mailbox', mailbox);
+      return api<{ threads: Thread[] }>(`/mail/threads?${params}`);
+    },
+    enabled: conversationView,
   });
 
   const messages = data?.messages ?? [];
+  const threads = threadData?.threads ?? [];
+
+  const selectedThread = threads.find((t) => t.threadId === selectedThreadId);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -47,9 +97,10 @@ export default function MailPage() {
   const onArchive = async () => {
     if (!selectedUid) return;
     try {
-      await api('/mail/bulk/move', { method: 'POST', body: JSON.stringify({ folder: 'inbox', uids: [selectedUid], destFolder: 'Sent', mailbox }) });
+      await api('/mail/bulk/move', { method: 'POST', body: JSON.stringify({ folder, uids: [selectedUid], destFolder: 'Sent', mailbox }) });
       toast.success('Archived');
-      queryClient.invalidateQueries({ queryKey: ['messages', 'inbox', mailbox] });
+      queryClient.invalidateQueries({ queryKey: ['messages', folder, mailbox] });
+      queryClient.invalidateQueries({ queryKey: ['threads', folder, mailbox] });
       setSelectedUid(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed');
@@ -59,9 +110,10 @@ export default function MailPage() {
   const onDelete = async () => {
     if (!selectedUid) return;
     try {
-      await api('/mail/bulk/move', { method: 'POST', body: JSON.stringify({ folder: 'inbox', uids: [selectedUid], destFolder: 'Trash', mailbox }) });
+      await api('/mail/bulk/move', { method: 'POST', body: JSON.stringify({ folder, uids: [selectedUid], destFolder: 'Trash', mailbox }) });
       toast.success('Deleted');
-      queryClient.invalidateQueries({ queryKey: ['messages', 'inbox', mailbox] });
+      queryClient.invalidateQueries({ queryKey: ['messages', folder, mailbox] });
+      queryClient.invalidateQueries({ queryKey: ['threads', folder, mailbox] });
       setSelectedUid(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed');
@@ -69,19 +121,19 @@ export default function MailPage() {
   };
 
   useKeyboardShortcuts({
-    folder: 'inbox',
+    folder,
     messages,
     selectedUid,
     onSelect: setSelectedUid,
     onArchive,
     onDelete,
     searchRef: searchInputRef,
-    enabled: messages.length > 0,
+    enabled: !conversationView && messages.length > 0,
   });
 
   return (
     <div className="flex flex-1 min-w-0 overflow-hidden">
-      {/* ── Email list column ── */}
+      {/* Email list column */}
       <div className="w-[300px] flex flex-col shrink-0 bg-white border-r border-slate-100">
         {/* Search */}
         <div className="px-4 py-4">
@@ -102,21 +154,37 @@ export default function MailPage() {
           </form>
         </div>
 
-        <MessageList
-          messages={messages}
-          selectedUid={selectedUid}
-          onSelect={setSelectedUid}
-          folder="inbox"
-          mailbox={mailbox}
-        />
+        {conversationView ? (
+          <ThreadList
+            threads={threads}
+            selectedThreadId={selectedThreadId}
+            onSelect={setSelectedThreadId}
+            folder={folder}
+            mailbox={mailbox}
+          />
+        ) : (
+          <MessageList
+            messages={messages}
+            selectedUid={selectedUid}
+            onSelect={setSelectedUid}
+            folder={folder}
+            mailbox={mailbox}
+          />
+        )}
       </div>
 
-      {/* ── Email view ── */}
+      {/* Email view */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0 bg-white">
-        {selectedUid ? (
+        {conversationView && selectedThread ? (
+          <ThreadView
+            thread={selectedThread}
+            folder={folder}
+            mailbox={mailbox}
+          />
+        ) : !conversationView && selectedUid ? (
           <MessageView
             uid={selectedUid}
-            folder="inbox"
+            folder={folder}
             mailbox={mailbox}
             allMessages={messages}
           />
@@ -128,7 +196,9 @@ export default function MailPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
               </div>
-              <p className="text-sm text-slate-400 font-medium">Select a message to read</p>
+              <p className="text-sm text-slate-400 font-medium">
+                {conversationView ? 'Select a conversation to read' : 'Select a message to read'}
+              </p>
             </div>
           </div>
         )}

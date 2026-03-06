@@ -11,6 +11,10 @@ import {
   searchMessages,
   bulkMoveMessages,
   bulkFlagMessages,
+  getThreadedMessages,
+  createFolder,
+  renameFolder,
+  deleteFolder,
 } from './mail.service.js';
 import { createAuditLog } from '../admin/audit.service.js';
 import { getSnoozedUids } from '../snooze/snooze.service.js';
@@ -18,6 +22,35 @@ import { query as dbQuery } from '../db/index.js';
 
 export const mailRouter = Router();
 const upload = multer({ storage: multer.memoryStorage() });
+
+/** Parse JSON strings in req.body (multipart sends to/cc/bcc as JSON strings) */
+function parseFormDataJson(req: import('express').Request, _res: import('express').Response, next: import('express').NextFunction) {
+  if (req.body?.to && typeof req.body.to === 'string') {
+    try {
+      const parsed = JSON.parse(req.body.to);
+      req.body.to = Array.isArray(parsed) ? parsed : req.body.to;
+    } catch {
+      // Leave as string; handler will split by comma
+    }
+  }
+  if (req.body?.cc && typeof req.body.cc === 'string') {
+    try {
+      const parsed = JSON.parse(req.body.cc);
+      req.body.cc = Array.isArray(parsed) ? parsed : req.body.cc;
+    } catch {
+      req.body.cc = undefined;
+    }
+  }
+  if (req.body?.bcc && typeof req.body.bcc === 'string') {
+    try {
+      const parsed = JSON.parse(req.body.bcc);
+      req.body.bcc = Array.isArray(parsed) ? parsed : req.body.bcc;
+    } catch {
+      req.body.bcc = undefined;
+    }
+  }
+  next();
+}
 
 mailRouter.use(authMiddleware);
 
@@ -49,6 +82,43 @@ mailRouter.get(
       const snoozedUids = await getSnoozedUids(req.user.id, folder, mailbox || null);
       const filtered = messages.filter((m) => !snoozedUids.has(m.uid));
       res.json({ messages: filtered });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      if (msg.includes('Session expired')) {
+        res.status(401).json({ error: msg });
+      } else {
+        res.status(500).json({ error: msg });
+      }
+    }
+  }
+);
+
+// List threaded messages
+mailRouter.get(
+  '/threads',
+  [
+    query('folder').optional().isString(),
+    query('limit').optional().isInt({ min: 1, max: 100 }),
+    query('offset').optional().isInt({ min: 0 }),
+    query('mailbox').optional().isEmail(),
+  ],
+  async (req: AuthRequest, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ errors: errors.array() });
+      return;
+    }
+
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    try {
+      const folder = (req.query.folder as string) || 'inbox';
+      const limit = parseInt((req.query.limit as string) || '50', 10);
+      const offset = parseInt((req.query.offset as string) || '0', 10);
+      const mailbox = req.query.mailbox as string | undefined;
+
+      const threads = await getThreadedMessages(req.user.id, folder, limit, offset, mailbox);
+      res.json({ threads });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       if (msg.includes('Session expired')) {
@@ -137,6 +207,7 @@ mailRouter.get(
 mailRouter.post(
   '/send',
   upload.array('attachments'),
+  parseFormDataJson,
   [
     body('from').isEmail(),
     body('to').custom((v) => {
@@ -283,6 +354,67 @@ mailRouter.get('/folders', async (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: msg });
   }
 });
+
+// Create folder
+mailRouter.post(
+  '/folders',
+  [body('name').notEmpty().isString(), body('mailbox').optional().isEmail()],
+  async (req: AuthRequest, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+      await createFolder(req.user.id, req.body.name, req.body.mailbox);
+      res.json({ success: true });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      if (msg.includes('Session expired')) res.status(401).json({ error: msg });
+      else res.status(500).json({ error: msg });
+    }
+  }
+);
+
+// Rename folder
+mailRouter.patch(
+  '/folders',
+  [
+    body('oldName').notEmpty().isString(),
+    body('newName').notEmpty().isString(),
+    body('mailbox').optional().isEmail(),
+  ],
+  async (req: AuthRequest, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+      await renameFolder(req.user.id, req.body.oldName, req.body.newName, req.body.mailbox);
+      res.json({ success: true });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      if (msg.includes('Session expired')) res.status(401).json({ error: msg });
+      else res.status(500).json({ error: msg });
+    }
+  }
+);
+
+// Delete folder
+mailRouter.delete(
+  '/folders',
+  [body('name').notEmpty().isString(), body('mailbox').optional().isEmail()],
+  async (req: AuthRequest, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+      await deleteFolder(req.user.id, req.body.name, req.body.mailbox);
+      res.json({ success: true });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      if (msg.includes('Session expired')) res.status(401).json({ error: msg });
+      else res.status(500).json({ error: msg });
+    }
+  }
+);
 
 // Bulk actions: move messages
 mailRouter.post(

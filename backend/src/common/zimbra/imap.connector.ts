@@ -31,6 +31,7 @@ export interface MessageSummary {
   };
   flags?: Set<string>;
   size?: number;
+  headers?: Map<string, string[]>;
 }
 
 export interface FetchMessageOptions {
@@ -66,12 +67,14 @@ export async function fetchMessageList(
       uid: true,
       flags: true,
       size: true,
+      headers: ['references', 'in-reply-to', 'message-id'],
     })) {
       messages.push({
         uid: msg.uid,
         envelope: msg.envelope as MessageSummary['envelope'],
         flags: msg.flags,
         size: msg.size,
+        headers: msg.headers as Map<string, string[]> | undefined,
       });
     }
   } finally {

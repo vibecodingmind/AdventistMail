@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { query, getClient } from '../db/index.js';
 import { ensureMailboxExists, grantMailboxAccess } from '../shared-mailboxes/shared-mailboxes.service.js';
+import { isDomainVerifiedForOrg } from './domains.service.js';
+import { provisionMailbox } from '../provisioning/provisioning.service.js';
 
 export interface Organization {
   id: string;
@@ -419,6 +421,11 @@ export async function approveOrganization(orgId: string): Promise<{ success: boo
     [mailboxId, orgId]
   );
 
+  const provResult = await provisionMailbox(org.requested_email);
+  if (!provResult.success) {
+    console.warn(`[approveOrganization] Provisioning warning for ${org.requested_email}: ${provResult.error}`);
+  }
+
   return { success: true };
 }
 
@@ -438,6 +445,11 @@ export async function requestOfficialEmail(
   }
 
   const normalizedEmail = requestedEmail.toLowerCase().trim();
+
+  const domainVerified = await isDomainVerifiedForOrg(orgId, normalizedEmail);
+  if (!domainVerified) {
+    return { success: false, error: 'Domain not verified. Add and verify this domain first in Organization settings.' };
+  }
 
   // Check if mailbox already exists
   const existingMailbox = await query<{ id: string }>('SELECT id FROM mailboxes WHERE email = $1', [normalizedEmail]);
@@ -529,5 +541,11 @@ export async function approveOrgEmailRequest(requestId: string): Promise<{ succe
     `UPDATE organization_email_requests SET status = 'approved', mailbox_id = $1, updated_at = NOW() WHERE id = $2`,
     [mailboxId, requestId]
   );
+
+  const provResult = await provisionMailbox(req.requested_email);
+  if (!provResult.success) {
+    console.warn(`[approveOrgEmailRequest] Provisioning warning for ${req.requested_email}: ${provResult.error}`);
+  }
+
   return { success: true };
 }

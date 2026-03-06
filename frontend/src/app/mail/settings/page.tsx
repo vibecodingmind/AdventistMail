@@ -432,6 +432,251 @@ function SecurityTab() {
   );
 }
 
+/* ══════════════════ SEND MAIL AS ══════════════════ */
+function SendMailAsSection() {
+  const [addresses, setAddresses] = useState<{ email: string; type: 'personal' | 'shared'; name?: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      api<{ email: string; display_name: string }>('/auth/me').catch(() => null),
+      api<{ mailboxes: { id: string; email: string; display_name: string }[] }>('/mailboxes').catch(() => ({ mailboxes: [] })),
+    ]).then(([me, mbData]) => {
+      const list: { email: string; type: 'personal' | 'shared'; name?: string }[] = [];
+      if (me) {
+        list.push({ email: me.email, type: 'personal', name: me.display_name });
+      }
+      for (const mb of mbData.mailboxes) {
+        if (!me || mb.email !== me.email) {
+          list.push({ email: mb.email, type: 'shared', name: mb.display_name });
+        }
+      }
+      setAddresses(list);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <Section title="Send mail as" desc="Use Adventist Mail to send from your other email addresses">
+      {loading ? (
+        <p className="text-sm text-slate-400">Loading…</p>
+      ) : addresses.length === 0 ? (
+        <p className="text-sm text-slate-500">No send-as addresses available.</p>
+      ) : (
+        <div className="space-y-2">
+          {addresses.map((addr) => (
+            <div key={addr.email} className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-slate-800 truncate">{addr.email}</p>
+                  <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${
+                    addr.type === 'personal'
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-blue-100 text-blue-700'
+                  }`}>
+                    {addr.type === 'personal' ? 'Personal' : 'Shared'}
+                  </span>
+                </div>
+                {addr.name && <p className="text-xs text-slate-500 mt-0.5">{addr.name}</p>}
+              </div>
+            </div>
+          ))}
+          <p className="text-xs text-slate-400 mt-2">
+            Shared addresses come from organization mailboxes you belong to.
+          </p>
+        </div>
+      )}
+    </Section>
+  );
+}
+
+/* ══════════════════ DELEGATE ACCESS ══════════════════ */
+interface DelegateInfo {
+  id: string;
+  delegate_user_id: string;
+  email: string;
+  display_name: string;
+  can_read: boolean;
+  can_send_as: boolean;
+  created_at: string;
+}
+
+interface GrantedInfo {
+  id: string;
+  owner_id: string;
+  owner_email: string;
+  owner_display_name: string;
+  can_read: boolean;
+  can_send_as: boolean;
+  created_at: string;
+}
+
+function DelegateAccessSection() {
+  const [delegates, setDelegates] = useState<DelegateInfo[]>([]);
+  const [granted, setGranted] = useState<GrantedInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [newCanRead, setNewCanRead] = useState(true);
+  const [newCanSendAs, setNewCanSendAs] = useState(false);
+  const [adding, setAdding] = useState(false);
+
+  function loadDelegates() {
+    Promise.all([
+      api<{ delegates: DelegateInfo[] }>('/delegates'),
+      api<{ granted: GrantedInfo[] }>('/delegates/granted'),
+    ])
+      .then(([d, g]) => {
+        setDelegates(d.delegates);
+        setGranted(g.granted);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => { loadDelegates(); }, []);
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newEmail.trim()) return;
+    setAdding(true);
+    try {
+      const d = await api<DelegateInfo>('/delegates', {
+        method: 'POST',
+        body: JSON.stringify({ email: newEmail.trim(), canRead: newCanRead, canSendAs: newCanSendAs }),
+      });
+      setDelegates((prev) => [d, ...prev]);
+      setNewEmail('');
+      setNewCanRead(true);
+      setNewCanSendAs(false);
+      setShowForm(false);
+      toast.success('Delegate added');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add delegate');
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function handleRemove(id: string) {
+    try {
+      await api(`/delegates/${id}`, { method: 'DELETE' });
+      setDelegates((prev) => prev.filter((d) => d.id !== id));
+      toast.success('Delegate removed');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove delegate');
+    }
+  }
+
+  if (loading) {
+    return (
+      <Section title="Grant access to your account" desc="Allow others to read and send mail on your behalf">
+        <p className="text-sm text-slate-400">Loading…</p>
+      </Section>
+    );
+  }
+
+  return (
+    <>
+      <Section title="Grant access to your account" desc="Allow others to read and send mail on your behalf">
+        <div className="space-y-3">
+          {delegates.length === 0 ? (
+            <p className="text-sm text-slate-500">No delegates configured.</p>
+          ) : (
+            delegates.map((d) => (
+              <div key={d.id} className="flex items-center justify-between gap-4 p-3 border border-slate-200 rounded-xl">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-800 truncate">{d.email}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    {d.display_name && <span className="text-xs text-slate-500">{d.display_name}</span>}
+                    {d.can_read && <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">Read</span>}
+                    {d.can_send_as && <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">Send as</span>}
+                  </div>
+                </div>
+                <button onClick={() => handleRemove(d.id)} className="text-sm text-red-600 hover:underline shrink-0">Remove</button>
+              </div>
+            ))
+          )}
+
+          {!showForm ? (
+            <button
+              onClick={() => setShowForm(true)}
+              className="mt-1 text-sm text-emerald-600 hover:underline"
+            >
+              Add another account
+            </button>
+          ) : (
+            <form onSubmit={handleAdd} className="mt-2 p-4 border border-slate-200 rounded-xl space-y-3">
+              <input
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="Delegate's email address"
+                required
+                className="w-full max-w-sm px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30"
+              />
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newCanRead}
+                    onChange={(e) => setNewCanRead(e.target.checked)}
+                    className="rounded text-emerald-500 focus:ring-emerald-400"
+                  />
+                  <span className="text-sm text-slate-700">Can read mail</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newCanSendAs}
+                    onChange={(e) => setNewCanSendAs(e.target.checked)}
+                    className="rounded text-emerald-500 focus:ring-emerald-400"
+                  />
+                  <span className="text-sm text-slate-700">Can send as me</span>
+                </label>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={adding}
+                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg disabled:opacity-50"
+                >
+                  {adding ? 'Adding…' : 'Add delegate'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowForm(false); setNewEmail(''); }}
+                  className="px-4 py-2 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </Section>
+
+      {granted.length > 0 && (
+        <Section title="Accounts granting me access" desc="These users have given you access to their mailbox">
+          <div className="space-y-2">
+            {granted.map((g) => (
+              <div key={g.id} className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-slate-800 truncate">{g.owner_email}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    {g.owner_display_name && <span className="text-xs text-slate-500">{g.owner_display_name}</span>}
+                    {g.can_read && <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">Read</span>}
+                    {g.can_send_as && <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">Send as</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+    </>
+  );
+}
+
 /* ══════════════════ TABS ══════════════════ */
 const TABS = [
   { id: 'general', label: 'General' },
@@ -549,7 +794,21 @@ export default function SettingsPage() {
     }
   }, []);
 
-  function saveSettings() {
+  useEffect(() => {
+    if (tab === 'general') {
+      api<{ isActive: boolean; subject: string; message: string; startDate: string | null; endDate: string | null }>('/vacation')
+        .then((v) => {
+          setVacationOn(v.isActive);
+          setVacationSubject(v.subject);
+          setVacationMsg(v.message);
+          setVacationStart(v.startDate || '');
+          setVacationEnd(v.endDate || '');
+        })
+        .catch(() => {});
+    }
+  }, [tab]);
+
+  async function saveSettings() {
     const settings = {
       pageSize, undoSend, replyBehavior, conversationView, hoverActions,
       signature, inboxType, readingPane, theme, accent,
@@ -564,7 +823,22 @@ export default function SettingsPage() {
         document.documentElement.classList.add('dark');
       else document.documentElement.classList.remove('dark');
     }
-    toast.success('Settings saved');
+
+    try {
+      await api('/vacation', {
+        method: 'PUT',
+        body: JSON.stringify({
+          isActive: vacationOn,
+          subject: vacationSubject,
+          message: vacationMsg,
+          startDate: vacationStart || null,
+          endDate: vacationEnd || null,
+        }),
+      });
+      toast.success('Settings saved');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save vacation settings');
+    }
   }
 
   async function changePassword() {
@@ -933,15 +1207,9 @@ export default function SettingsPage() {
               </div>
             </Section>
 
-            <Section title="Send mail as" desc="Use Adventist Mail to send from your other email addresses">
-              <p className="text-sm text-slate-500">No additional addresses configured.</p>
-              <button className="mt-2 text-sm text-emerald-600 hover:underline">Add another email address</button>
-            </Section>
+            <SendMailAsSection />
 
-            <Section title="Grant access to your account" desc="Allow others to read and send mail on your behalf">
-              <p className="text-sm text-slate-500">No delegates configured.</p>
-              <button className="mt-2 text-sm text-emerald-600 hover:underline">Add another account</button>
-            </Section>
+            <DelegateAccessSection />
           </div>
         )}
 

@@ -31,6 +31,19 @@ export interface MailMessage {
   flags: string[];
   size?: number;
   hasAttachments?: boolean;
+  messageId?: string;
+  references?: string;
+  inReplyTo?: string;
+}
+
+export interface Thread {
+  threadId: string;
+  messages: MailMessage[];
+  latestDate: string;
+  subject: string;
+  participants: string[];
+  snippet: string;
+  unreadCount: number;
 }
 
 export interface MailMessageDetail extends MailMessage {
@@ -70,6 +83,12 @@ export async function getMessagesForUser(
   }
 }
 
+function getHeaderValue(headers: Map<string, string[]> | undefined, key: string): string | undefined {
+  if (!headers) return undefined;
+  const vals = headers.get(key);
+  return vals?.[0] || undefined;
+}
+
 function formatMessageSummary(s: MessageSummary): MailMessage {
   const from = s.envelope.from?.[0];
   const to = s.envelope.to?.[0];
@@ -81,6 +100,9 @@ function formatMessageSummary(s: MessageSummary): MailMessage {
     date: s.envelope.date?.toISOString() || new Date().toISOString(),
     flags: s.flags ? Array.from(s.flags) : [],
     size: s.size,
+    messageId: s.envelope.messageId || getHeaderValue(s.headers, 'message-id'),
+    references: getHeaderValue(s.headers, 'references'),
+    inReplyTo: getHeaderValue(s.headers, 'in-reply-to'),
   };
 }
 
@@ -291,6 +313,168 @@ export async function bulkMoveMessages(
     const src = FOLDER_MAP[folder.toLowerCase()] || folder;
     const dest = FOLDER_MAP[destFolder.toLowerCase()] || destFolder;
     await moveMessages(client, src, uids, dest);
+  } finally {
+    await client.logout();
+  }
+}
+
+function normalizeSubject(subject: string): string {
+  return subject.replace(/^(Re|Fwd|Fw|RE|FW|FWD)\s*:\s*/gi, '').trim();
+}
+
+function extractParticipant(addr: string): string {
+  const match = addr.match(/^(.+?)\s*</);
+  return match ? match[1].trim() : addr.split('@')[0];
+}
+
+function groupIntoThreads(messages: MailMessage[]): Thread[] {
+  const threadMap = new Map<string, MailMessage[]>();
+  const messageToThread = new Map<string, string>();
+
+  for (const msg of messages) {
+    let threadId: string | undefined;
+
+    if (msg.inReplyTo) {
+      threadId = messageToThread.get(msg.inReplyTo);
+    }
+    if (!threadId && msg.references) {
+      const refs = msg.references.split(/\s+/).filter(Boolean);
+      for (const ref of refs) {
+        const existing = messageToThread.get(ref);
+        if (existing) { threadId = existing; break; }
+      }
+    }
+
+    if (!threadId) {
+      const normalized = normalizeSubject(msg.subject);
+      for (const [tid, threadMsgs] of threadMap) {
+        if (normalizeSubject(threadMsgs[0].subject) === normalized) {
+          threadId = tid;
+          break;
+        }
+      }
+    }
+
+    if (!threadId) {
+      threadId = msg.messageId || `thread-${msg.uid}`;
+    }
+
+    if (!threadMap.has(threadId)) {
+      threadMap.set(threadId, []);
+    }
+    threadMap.get(threadId)!.push(msg);
+
+    if (msg.messageId) {
+      messageToThread.set(msg.messageId, threadId);
+    }
+  }
+
+  const threads: Thread[] = [];
+  for (const [threadId, msgs] of threadMap) {
+    msgs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const participantSet = new Set<string>();
+    for (const m of msgs) {
+      participantSet.add(extractParticipant(m.from));
+    }
+    const latest = msgs[msgs.length - 1];
+    threads.push({
+      threadId,
+      messages: msgs,
+      latestDate: latest.date,
+      subject: normalizeSubject(msgs[0].subject),
+      participants: Array.from(participantSet),
+      snippet: latest.subject,
+      unreadCount: msgs.filter((m) => !m.flags.includes('\\Seen')).length,
+    });
+  }
+
+  threads.sort((a, b) => new Date(b.latestDate).getTime() - new Date(a.latestDate).getTime());
+  return threads;
+}
+
+export async function getThreadedMessages(
+  userId: string,
+  folder: string = 'inbox',
+  limit: number = 50,
+  offset: number = 0,
+  mailboxEmail?: string
+): Promise<Thread[]> {
+  const creds = await getImapCredentials(userId);
+  if (!creds) throw new Error('Session expired, please login again');
+
+  const connectEmail = mailboxEmail || creds.email;
+  const client = createImapClient({
+    user: connectEmail,
+    password: creds.password,
+  });
+
+  try {
+    await client.connect();
+    const imapFolder = FOLDER_MAP[folder.toLowerCase()] || folder;
+    const summaries = await fetchMessageList(client, {
+      mailbox: imapFolder,
+      limit: Math.max(limit * 3, 150),
+      offset,
+    });
+
+    const messages = summaries.map((s) => formatMessageSummary(s));
+    const threads = groupIntoThreads(messages);
+    return threads.slice(0, limit);
+  } finally {
+    await client.logout();
+  }
+}
+
+export async function createFolder(
+  userId: string,
+  folderName: string,
+  mailboxEmail?: string
+): Promise<void> {
+  const creds = await getImapCredentials(userId);
+  if (!creds) throw new Error('Session expired, please login again');
+
+  const connectEmail = mailboxEmail || creds.email;
+  const client = createImapClient({ user: connectEmail, password: creds.password });
+  try {
+    await client.connect();
+    await client.mailboxCreate(folderName);
+  } finally {
+    await client.logout();
+  }
+}
+
+export async function renameFolder(
+  userId: string,
+  oldName: string,
+  newName: string,
+  mailboxEmail?: string
+): Promise<void> {
+  const creds = await getImapCredentials(userId);
+  if (!creds) throw new Error('Session expired, please login again');
+
+  const connectEmail = mailboxEmail || creds.email;
+  const client = createImapClient({ user: connectEmail, password: creds.password });
+  try {
+    await client.connect();
+    await client.mailboxRename(oldName, newName);
+  } finally {
+    await client.logout();
+  }
+}
+
+export async function deleteFolder(
+  userId: string,
+  folderName: string,
+  mailboxEmail?: string
+): Promise<void> {
+  const creds = await getImapCredentials(userId);
+  if (!creds) throw new Error('Session expired, please login again');
+
+  const connectEmail = mailboxEmail || creds.email;
+  const client = createImapClient({ user: connectEmail, password: creds.password });
+  try {
+    await client.connect();
+    await client.mailboxDelete(folderName);
   } finally {
     await client.logout();
   }

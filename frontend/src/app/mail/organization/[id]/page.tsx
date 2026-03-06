@@ -46,7 +46,7 @@ export default function OrganizationDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<'members' | 'emails' | 'branding'>('members');
+  const [tab, setTab] = useState<'members' | 'emails' | 'domains' | 'branding'>('members');
 
   const [logoUrl, setLogoUrl] = useState('');
   const [primaryColor, setPrimaryColor] = useState('#047857');
@@ -57,6 +57,11 @@ export default function OrganizationDetailPage() {
   const [inviteLoading, setInviteLoading] = useState(false);
   const [addLoading, setAddLoading] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
+
+  // Domains state
+  const [newDomain, setNewDomain] = useState('');
+  const [domainLoading, setDomainLoading] = useState(false);
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
 
   const { data: orgsData } = useQuery({
     queryKey: ['organizations'],
@@ -77,8 +82,15 @@ export default function OrganizationDetailPage() {
     enabled: !!id,
   });
 
+  const { data: domainsData, isLoading: domainsLoading } = useQuery({
+    queryKey: ['org-domains', id],
+    queryFn: () => api<{ domains: { id: string; domain: string; verification_token: string; verified_at: string | null; created_at: string }[] }>(`/organizations/${id}/domains`),
+    enabled: !!id && org?.role === 'org_admin',
+  });
+
   const members = membersData?.members ?? [];
   const officialEmails = emailsData?.officialEmails ?? [];
+  const domains = domainsData?.domains ?? [];
   const isAdmin = org?.role === 'org_admin';
 
   useEffect(() => {
@@ -166,6 +178,59 @@ export default function OrganizationDetailPage() {
     }
   }
 
+  async function handleAddDomain(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newDomain.trim()) return;
+    setDomainLoading(true);
+    try {
+      const res = await api<{ success: boolean; domain?: string; verification_record?: string; record_name?: string; error?: string }>(`/organizations/${id}/domains`, {
+        method: 'POST',
+        body: JSON.stringify({ domain: newDomain.trim() }),
+      });
+      if (res.success) {
+        toast.success(`Domain added. Add a TXT record for ${res.record_name} with value "${res.verification_record}"`);
+        setNewDomain('');
+        queryClient.invalidateQueries({ queryKey: ['org-domains', id] });
+      } else {
+        toast.error(res.error || 'Failed to add domain');
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add domain');
+    } finally {
+      setDomainLoading(false);
+    }
+  }
+
+  async function handleVerifyDomain(domainId: string) {
+    setVerifyingId(domainId);
+    try {
+      const res = await api<{ success: boolean; verified?: boolean; error?: string }>(`/organizations/${id}/domains/${domainId}/verify`, {
+        method: 'POST',
+      });
+      if (res.verified) {
+        toast.success('Domain verified successfully!');
+        queryClient.invalidateQueries({ queryKey: ['org-domains', id] });
+      } else {
+        toast.error(res.error || 'Domain verification failed. Check your DNS records.');
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Verification failed');
+    } finally {
+      setVerifyingId(null);
+    }
+  }
+
+  async function handleRemoveDomain(domainId: string) {
+    if (!confirm('Remove this domain?')) return;
+    try {
+      await api(`/organizations/${id}/domains/${domainId}`, { method: 'DELETE' });
+      toast.success('Domain removed');
+      queryClient.invalidateQueries({ queryKey: ['org-domains', id] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove');
+    }
+  }
+
   if (!org) {
     return (
       <div className="flex flex-col h-full items-center justify-center bg-[#F5F6FA]">
@@ -206,6 +271,14 @@ export default function OrganizationDetailPage() {
           >
             Official Emails
           </button>
+          {isAdmin && (
+            <button
+              onClick={() => setTab('domains')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === 'domains' ? 'bg-emerald-500 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+            >
+              Domains
+            </button>
+          )}
           {isAdmin && (
             <button
               onClick={() => setTab('branding')}
@@ -300,6 +373,95 @@ export default function OrganizationDetailPage() {
                   {brandingLoading ? 'Saving…' : 'Save branding'}
                 </button>
               </form>
+            </div>
+          </div>
+        )}
+
+        {tab === 'domains' && isAdmin && (
+          <div className="space-y-6">
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <h3 className="font-medium text-slate-800 mb-3">Add a domain</h3>
+              <p className="text-sm text-slate-500 mb-3">
+                Add your church domain to create email addresses like <span className="font-mono text-slate-700">pastor@yourchurch.org</span>.
+                You'll need to verify ownership by adding a DNS TXT record.
+              </p>
+              <form onSubmit={handleAddDomain} className="flex gap-2">
+                <input
+                  type="text"
+                  value={newDomain}
+                  onChange={(e) => setNewDomain(e.target.value)}
+                  placeholder="yourchurch.org"
+                  className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                />
+                <button type="submit" disabled={domainLoading} className="px-4 py-2 bg-emerald-500 text-white text-sm font-medium rounded-lg hover:bg-emerald-600 disabled:opacity-50">
+                  {domainLoading ? 'Adding…' : 'Add Domain'}
+                </button>
+              </form>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+              <h3 className="font-medium text-slate-800 p-4 border-b border-slate-100">Your domains</h3>
+              {domainsLoading ? (
+                <div className="p-8 text-center text-slate-500">Loading…</div>
+              ) : domains.length === 0 ? (
+                <div className="p-8 text-center text-slate-500">No domains added yet</div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {domains.map((d) => (
+                    <div key={d.id} className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-medium text-slate-800">{d.domain}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            d.verified_at ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                          }`}>
+                            {d.verified_at ? 'Verified' : 'Pending'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {!d.verified_at && (
+                            <>
+                              <button
+                                onClick={() => handleVerifyDomain(d.id)}
+                                disabled={verifyingId === d.id}
+                                className="px-3 py-1.5 bg-emerald-500 text-white text-xs font-medium rounded-lg hover:bg-emerald-600 disabled:opacity-50"
+                              >
+                                {verifyingId === d.id ? 'Checking…' : 'Verify'}
+                              </button>
+                              <button
+                                onClick={() => handleRemoveDomain(d.id)}
+                                className="px-3 py-1.5 text-red-600 text-xs font-medium hover:bg-red-50 rounded-lg"
+                              >
+                                Remove
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      {!d.verified_at && (
+                        <div className="mt-3 p-3 bg-slate-50 rounded-lg">
+                          <p className="text-xs font-medium text-slate-600 mb-2">Add this DNS TXT record to verify:</p>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-slate-500 w-12">Name:</span>
+                              <code className="text-xs bg-white px-2 py-1 rounded border border-slate-200 text-slate-800 font-mono select-all">
+                                _adventistmail.{d.domain}
+                              </code>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-slate-500 w-12">Value:</span>
+                              <code className="text-xs bg-white px-2 py-1 rounded border border-slate-200 text-slate-800 font-mono select-all">
+                                adventist-mail-verify={d.verification_token}
+                              </code>
+                            </div>
+                          </div>
+                          <p className="text-xs text-slate-400 mt-2">DNS changes can take a few minutes to propagate. Click "Verify" after adding the record.</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

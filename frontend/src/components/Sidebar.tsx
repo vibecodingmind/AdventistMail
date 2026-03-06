@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState, useRef, useEffect } from 'react';
 import { api } from '@/lib/api';
 import { ComposeWindow } from './ComposeWindow';
+import toast from 'react-hot-toast';
 
 interface Mailbox {
   id: string;
@@ -13,6 +14,8 @@ interface Mailbox {
   type: string;
   display_name: string | null;
 }
+
+const SYSTEM_FOLDERS = ['INBOX', 'Sent', 'Drafts', 'Junk', 'Trash', 'Spam'];
 
 const navItems = [
   {
@@ -107,16 +110,103 @@ function NavItem({ href, exact, label, icon, badge }: typeof navItems[0]) {
 export function Sidebar() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const mailbox = searchParams.get('mailbox') || undefined;
   const [composeOpen, setComposeOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [renamingFolder, setRenamingFolder] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [folderMenuOpen, setFolderMenuOpen] = useState<string | null>(null);
+  const folderMenuRef = useRef<HTMLDivElement>(null);
+  const newFolderInputRef = useRef<HTMLInputElement>(null);
 
   const { data } = useQuery({
     queryKey: ['mailboxes'],
     queryFn: () => api<{ mailboxes: Mailbox[] }>('/mailboxes'),
   });
 
+  const { data: foldersData } = useQuery({
+    queryKey: ['folders', mailbox],
+    queryFn: () => {
+      const params = mailbox ? `?mailbox=${encodeURIComponent(mailbox)}` : '';
+      return api<{ folders: { path: string }[] }>(`/mail/folders${params}`);
+    },
+  });
+
+  const allFolders = foldersData?.folders ?? [];
+  const customFolders = allFolders
+    .map((f) => f.path)
+    .filter((p) => !SYSTEM_FOLDERS.includes(p) && p !== 'INBOX');
+
   const sharedMailboxes = (data?.mailboxes ?? []).filter((m) => m.type === 'shared');
+
+  useEffect(() => {
+    if (!folderMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (folderMenuRef.current && !folderMenuRef.current.contains(e.target as Node)) {
+        setFolderMenuOpen(null);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', handler), 0);
+    return () => document.removeEventListener('click', handler);
+  }, [folderMenuOpen]);
+
+  useEffect(() => {
+    if (creatingFolder) newFolderInputRef.current?.focus();
+  }, [creatingFolder]);
+
+  async function handleCreateFolder(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newFolderName.trim()) return;
+    try {
+      await api('/mail/folders', {
+        method: 'POST',
+        body: JSON.stringify({ name: newFolderName.trim(), mailbox }),
+      });
+      toast.success('Folder created');
+      setNewFolderName('');
+      setCreatingFolder(false);
+      queryClient.invalidateQueries({ queryKey: ['folders', mailbox] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    }
+  }
+
+  async function handleRenameFolder(oldName: string) {
+    if (!renameValue.trim() || renameValue.trim() === oldName) {
+      setRenamingFolder(null);
+      return;
+    }
+    try {
+      await api('/mail/folders', {
+        method: 'PATCH',
+        body: JSON.stringify({ oldName, newName: renameValue.trim(), mailbox }),
+      });
+      toast.success('Folder renamed');
+      setRenamingFolder(null);
+      queryClient.invalidateQueries({ queryKey: ['folders', mailbox] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    }
+  }
+
+  async function handleDeleteFolder(name: string) {
+    if (!confirm(`Delete folder "${name}"? Messages in it may be lost.`)) return;
+    try {
+      await api('/mail/folders', {
+        method: 'DELETE',
+        body: JSON.stringify({ name, mailbox }),
+      });
+      toast.success('Folder deleted');
+      setFolderMenuOpen(null);
+      queryClient.invalidateQueries({ queryKey: ['folders', mailbox] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    }
+  }
 
   function handleLogout() {
     localStorage.removeItem('accessToken');
@@ -196,6 +286,129 @@ export function Sidebar() {
           </Link>
         ))}
       </nav>
+
+      {/* Custom Folders */}
+      {customFolders.length > 0 || creatingFolder ? (
+        <div className="px-4 py-3 border-t border-slate-100">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Folders</span>
+            <button
+              onClick={() => setCreatingFolder(true)}
+              className="w-6 h-6 flex items-center justify-center rounded-lg text-emerald-500 hover:bg-emerald-50 transition-colors"
+              title="Create folder"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+          </div>
+
+          {creatingFolder && (
+            <form onSubmit={handleCreateFolder} className="mb-2 flex gap-1">
+              <input
+                ref={newFolderInputRef}
+                type="text"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                placeholder="Folder name"
+                className="flex-1 min-w-0 px-2 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                onKeyDown={(e) => { if (e.key === 'Escape') { setCreatingFolder(false); setNewFolderName(''); } }}
+              />
+              <button type="submit" className="px-2 py-1 text-xs bg-emerald-500 text-white rounded-lg hover:bg-emerald-600">
+                Add
+              </button>
+            </form>
+          )}
+
+          <div className="space-y-0.5">
+            {customFolders.map((folderPath) => (
+              <div key={folderPath} className="relative group">
+                {renamingFolder === folderPath ? (
+                  <form
+                    onSubmit={(e) => { e.preventDefault(); handleRenameFolder(folderPath); }}
+                    className="flex gap-1 py-1"
+                  >
+                    <input
+                      type="text"
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      className="flex-1 min-w-0 px-2 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                      autoFocus
+                      onKeyDown={(e) => { if (e.key === 'Escape') setRenamingFolder(null); }}
+                      onBlur={() => handleRenameFolder(folderPath)}
+                    />
+                  </form>
+                ) : (
+                  <Link
+                    href={`/mail?folder=${encodeURIComponent(folderPath)}${mailbox ? `&mailbox=${encodeURIComponent(mailbox)}` : ''}`}
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-slate-600 hover:text-slate-800 hover:bg-slate-50 transition-all"
+                  >
+                    <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+                    </svg>
+                    <span className="truncate flex-1">{folderPath}</span>
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFolderMenuOpen(folderMenuOpen === folderPath ? null : folderPath); }}
+                      className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01" />
+                      </svg>
+                    </button>
+                  </Link>
+                )}
+                {folderMenuOpen === folderPath && (
+                  <div ref={folderMenuRef} className="absolute right-2 top-full mt-0.5 py-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 min-w-[110px]">
+                    <button
+                      onClick={() => { setRenamingFolder(folderPath); setRenameValue(folderPath); setFolderMenuOpen(null); }}
+                      className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+                    >
+                      Rename
+                    </button>
+                    <button
+                      onClick={() => handleDeleteFolder(folderPath)}
+                      className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="px-4 py-3 border-t border-slate-100">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Folders</span>
+            <button
+              onClick={() => setCreatingFolder(true)}
+              className="w-6 h-6 flex items-center justify-center rounded-lg text-emerald-500 hover:bg-emerald-50 transition-colors"
+              title="Create folder"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+          </div>
+          {creatingFolder && (
+            <form onSubmit={handleCreateFolder} className="flex gap-1">
+              <input
+                ref={newFolderInputRef}
+                type="text"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                placeholder="Folder name"
+                className="flex-1 min-w-0 px-2 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                onKeyDown={(e) => { if (e.key === 'Escape') { setCreatingFolder(false); setNewFolderName(''); } }}
+              />
+              <button type="submit" className="px-2 py-1 text-xs bg-emerald-500 text-white rounded-lg hover:bg-emerald-600">
+                Add
+              </button>
+            </form>
+          )}
+        </div>
+      )}
 
       {/* Labels */}
       <div className="px-4 py-4 border-t border-slate-100">

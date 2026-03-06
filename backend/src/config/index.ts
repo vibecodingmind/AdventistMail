@@ -44,4 +44,8 @@ export const config = {
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID || '',
   },
+  provisioning: {
+    mode: process.env.MAIL_PROVISIONING_MODE || 'manual',
+    webhookUrl: process.env.PROVISIONING_WEBHOOK_URL || '',
+  },
 } as const;

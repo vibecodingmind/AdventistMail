@@ -18,6 +18,12 @@ import {
   approveOrgEmailRequest,
   updateOrganizationBranding,
 } from './organizations.service.js';
+import {
+  addDomain,
+  listDomains,
+  verifyDomain,
+  removeDomain,
+} from './domains.service.js';
 
 export const organizationsRouter = Router();
 
@@ -217,6 +223,103 @@ organizationsRouter.get(
       }
       const emails = await getOrganizationOfficialEmails(req.params.id);
       res.json({ officialEmails: emails });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+    }
+  }
+);
+
+// Add domain
+organizationsRouter.post(
+  '/:id/domains',
+  [param('id').isUUID(), body('domain').notEmpty().trim()],
+  async (req: AuthRequest, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ errors: errors.array() });
+      return;
+    }
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+      const result = await addDomain(req.params.id, req.body.domain, req.user.id);
+      if (!result.success) {
+        res.status(400).json({ error: result.error });
+        return;
+      }
+      res.json({
+        success: true,
+        domain: result.domain,
+        verification_record: result.verification_record,
+        record_name: result.record_name,
+      });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+    }
+  }
+);
+
+// List domains
+organizationsRouter.get(
+  '/:id/domains',
+  [param('id').isUUID()],
+  async (req: AuthRequest, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ errors: errors.array() });
+      return;
+    }
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+      const domains = await listDomains(req.params.id);
+      res.json({ domains });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+    }
+  }
+);
+
+// Verify domain
+organizationsRouter.post(
+  '/:id/domains/:domainId/verify',
+  [param('id').isUUID(), param('domainId').isUUID()],
+  async (req: AuthRequest, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ errors: errors.array() });
+      return;
+    }
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+      const result = await verifyDomain(req.params.domainId, req.params.id, req.user.id);
+      if (!result.success) {
+        res.status(400).json({ error: result.error });
+        return;
+      }
+      res.json({ verified: result.verified, error: result.error });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
+    }
+  }
+);
+
+// Remove domain
+organizationsRouter.delete(
+  '/:id/domains/:domainId',
+  [param('id').isUUID(), param('domainId').isUUID()],
+  async (req: AuthRequest, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ errors: errors.array() });
+      return;
+    }
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+      const result = await removeDomain(req.params.domainId, req.params.id, req.user.id);
+      if (!result.success) {
+        res.status(400).json({ error: result.error });
+        return;
+      }
+      res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Unknown error' });
     }
