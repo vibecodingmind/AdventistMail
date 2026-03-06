@@ -1,6 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
+import { ProfileMenu } from './ProfileMenu';
 
 const navItems = [
   {
@@ -115,10 +116,8 @@ export function IconNavBar() {
         })}
       </nav>
 
-      {/* User avatar */}
-      <button className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold flex items-center justify-center hover:ring-2 hover:ring-emerald-300 transition-all">
-        {getInitials()}
-      </button>
+      {/* User avatar / profile menu */}
+      <ProfileMenu />
     </div>
   );
 }
