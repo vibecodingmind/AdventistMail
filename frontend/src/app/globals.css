@@ -25,6 +25,13 @@ h1, h2, h3 {
   letter-spacing: -0.02em;
 }
 
+/* ContentEditable placeholder */
+[contenteditable][data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+  pointer-events: none;
+}
+
 /* Dark mode prose (email body) */
 .dark .prose {
   --tw-prose-body: theme('colors.slate[300]');
