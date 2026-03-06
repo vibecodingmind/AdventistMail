@@ -4,6 +4,7 @@
   "private": true,
   "description": "Adventist Church Mail System - Private internal email platform for churches",
   "scripts": {
+    "railway:setup": "bash scripts/railway-setup.sh",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:backend": "cd backend && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",

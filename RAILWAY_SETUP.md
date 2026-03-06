@@ -1,6 +1,22 @@
 # Railway Setup – Copy-Paste Values
 
-Use this file to configure your Railway services. Copy each variable into Railway → Variables.
+## One-command setup (after Railway login)
+
+```bash
+# 1. Install Railway CLI (if needed)
+npm i -g @railway/cli
+
+# 2. Login and link (opens browser)
+railway login
+railway link   # Select your project & the adventistmail-production service
+
+# 3. Run setup (sets variables automatically)
+npm run railway:setup
+```
+
+Then add **DATABASE_URL** and **REDIS_URL** manually: Variables → Add Variable → Reference → Postgres/Redis.
+
+---
 
 **Which setup do I have?**
 - **One service** = You deployed from repo root (no Root Directory set). Backend + frontend run together.
