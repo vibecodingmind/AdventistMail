@@ -27,9 +27,10 @@ export const config = {
       secure: process.env.ZIMBRA_IMAP_SECURE !== 'false',
     },
     smtp: {
-      host: process.env.ZIMBRA_SMTP_HOST || 'mail.church.org',
-      port: parseInt(process.env.ZIMBRA_SMTP_PORT || '587', 10),
-      secure: process.env.ZIMBRA_SMTP_SECURE === 'true',
+      // Use SMTP_* for any mail server, or ZIMBRA_SMTP_* for Zimbra
+      host: process.env.SMTP_HOST || process.env.ZIMBRA_SMTP_HOST || 'mail.church.org',
+      port: parseInt(process.env.SMTP_PORT || process.env.ZIMBRA_SMTP_PORT || '587', 10),
+      secure: (process.env.SMTP_SECURE || process.env.ZIMBRA_SMTP_SECURE) === 'true',
     },
   },
   app: {

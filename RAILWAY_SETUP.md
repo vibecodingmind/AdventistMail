@@ -43,6 +43,9 @@ Add these variables in your service **Variables** tab:
 | `APP_URL` | `https://adventistmail-production.up.railway.app` |
 | `API_URL` | `http://localhost:3001` |
 | `NEXT_PUBLIC_API_URL` | `https://adventistmail-production.up.railway.app/api/v1` |
+| `SMTP_HOST` | Your mail server (e.g. `smtp.gmail.com` or `mail.yourchurch.org`) |
+| `SMTP_PORT` | `587` |
+| `SMTP_SECURE` | `false` |
 
 ---
 

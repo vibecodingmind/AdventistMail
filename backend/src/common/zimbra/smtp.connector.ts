@@ -1,6 +1,16 @@
 import nodemailer from 'nodemailer';
 import { config } from '../../config/index.js';
 
+function getSmtpHost(): string {
+  const host = config.zimbra.smtp.host;
+  if (!host || host === 'localhost' || host === '127.0.0.1') {
+    throw new Error(
+      'SMTP not configured. Set SMTP_HOST in Railway Variables to your mail server (e.g. smtp.gmail.com or mail.yourchurch.org). See RAILWAY_DEPLOY.md'
+    );
+  }
+  return host;
+}
+
 export interface SendMailOptions {
   from: string;
   to: string | string[];
@@ -14,8 +24,9 @@ export interface SendMailOptions {
 }
 
 export function createSmtpTransporter(user: string, password: string) {
+  const host = getSmtpHost();
   return nodemailer.createTransport({
-    host: config.zimbra.smtp.host,
+    host,
     port: config.zimbra.smtp.port,
     secure: config.zimbra.smtp.secure,
     auth: {

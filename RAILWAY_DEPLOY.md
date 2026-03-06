@@ -92,6 +92,26 @@ Deploy your app from GitHub to Railway in a few steps.
 
 ---
 
+## Email / SMTP (Required for sending)
+
+To send emails, add these variables to the backend:
+
+| Variable | Value | Example |
+|----------|-------|---------|
+| `SMTP_HOST` | Your mail server hostname | `smtp.gmail.com` or `mail.yourchurch.org` |
+| `SMTP_PORT` | Usually `587` (TLS) or `465` (SSL) | `587` |
+| `SMTP_SECURE` | `true` for port 465, `false` for 587 | `false` |
+
+**Without these**, sending fails with `ECONNREFUSED 127.0.0.1:587` because the app falls back to localhost.
+
+**Gmail example:** Use an [App Password](https://support.google.com/accounts/answer/185833):
+- `SMTP_HOST` = `smtp.gmail.com`
+- `SMTP_PORT` = `587`
+- `SMTP_SECURE` = `false`
+- Sender must be a Gmail address; use that account's App Password when sending.
+
+---
+
 ## Zimbra (Optional)
 
 For production with Zimbra mail server, add these variables to the backend:
