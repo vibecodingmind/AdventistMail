@@ -252,32 +252,64 @@ export default function SignupPage() {
 
   /* ── Step 2: Basic info ── */
   if (step === 'basic') {
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const days = Array.from({ length: 31 }, (_, i) => i + 1);
+    const currentYear = new Date().getFullYear();
+    const years = Array.from({ length: currentYear - 1899 }, (_, i) => currentYear - i);
+
+    const selectClass = 'w-full px-3 py-3 bg-[#0E1829] border border-white/20 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-400/60 transition-colors appearance-none';
+
     return (
       <Shell step={step} stepIndex={1} totalSteps={4} title="Basic information" subtitle="Enter your birthday and gender">
         <form onSubmit={(e) => { e.preventDefault(); setStep('email'); }} className="flex flex-col gap-3">
+          {/* Birthday row */}
+          <label className="text-xs text-white/40 -mb-1">Date of birth</label>
           <div className="flex gap-2">
+            {/* Month */}
             <div className="flex-1 relative">
-              <DarkSelect id="month" value={month} onChange={setMonth} className="flex-1">
+              <select id="month" value={month} onChange={(e) => setMonth(e.target.value)} className={selectClass}>
                 <option value="">Month</option>
-                {['January','February','March','April','May','June','July','August','September','October','November','December'].map((m) => (
-                  <option key={m} value={m}>{m}</option>
+                {months.map((m, i) => (
+                  <option key={m} value={String(i + 1)}>{m}</option>
                 ))}
-              </DarkSelect>
+              </select>
               <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </div>
-            <DarkInput id="day" placeholder="Day" value={day} onChange={setDay} className="w-20" />
-            <DarkInput id="year" placeholder="Year" value={year} onChange={setYear} className="w-24" />
+            {/* Day */}
+            <div className="w-24 relative">
+              <select id="day" value={day} onChange={(e) => setDay(e.target.value)} className={selectClass}>
+                <option value="">Day</option>
+                {days.map((d) => (
+                  <option key={d} value={String(d)}>{d}</option>
+                ))}
+              </select>
+              <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            {/* Year */}
+            <div className="w-28 relative">
+              <select id="year" value={year} onChange={(e) => setYear(e.target.value)} className={selectClass}>
+                <option value="">Year</option>
+                {years.map((y) => (
+                  <option key={y} value={String(y)}>{y}</option>
+                ))}
+              </select>
+              <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
           </div>
 
+          {/* Gender */}
           <div className="relative">
-            <DarkSelect id="gender" value={gender} onChange={setGender}>
+            <select id="gender" value={gender} onChange={(e) => setGender(e.target.value)} className={selectClass}>
               <option value="">Gender</option>
               <option value="male">Male</option>
               <option value="female">Female</option>
-              <option value="other">Rather not say</option>
-            </DarkSelect>
+            </select>
             <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
