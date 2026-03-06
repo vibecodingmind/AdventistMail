@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import bcrypt from 'bcryptjs';
@@ -9,7 +9,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 export async function initDatabase(): Promise<void> {
+  // schema.sql is copied to dist/db/ during build
   const schemaPath = join(__dirname, 'schema.sql');
+  if (!existsSync(schemaPath)) {
+    throw new Error(`Schema file not found at ${schemaPath}. Ensure build copies src/db/schema.sql to dist/db/`);
+  }
   const schema = readFileSync(schemaPath, 'utf-8');
   await pool.query(schema);
 
