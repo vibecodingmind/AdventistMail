@@ -10,156 +10,144 @@ const GoogleOAuthButton = dynamic(() => import('@/components/GoogleOAuthButton')
 
 const hasGoogleClientId = !!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
-/* ── Reusable outlined input (Google Material style) ── */
-function OutlinedInput({
+/* ── Input matching login page style ── */
+function DarkInput({
   id,
-  label,
   type = 'text',
   value,
   onChange,
+  placeholder,
   required,
   autoFocus,
-  suffix,
   className,
 }: {
   id: string;
-  label: string;
   type?: string;
   value: string;
   onChange: (v: string) => void;
+  placeholder: string;
   required?: boolean;
   autoFocus?: boolean;
-  suffix?: string;
   className?: string;
 }) {
   return (
-    <div className={`relative ${className ?? ''}`}>
-      <input
-        id={id}
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        required={required}
-        autoFocus={autoFocus}
-        placeholder=" "
-        className="peer w-full pl-3 pr-3 pt-5 pb-2 bg-transparent border border-white/20 rounded text-sm text-[#e8eaed] focus:outline-none focus:border-[#8ab4f8] transition-colors"
-        style={suffix ? { paddingRight: `${suffix.length * 8 + 12}px` } : {}}
-      />
-      <label
-        htmlFor={id}
-        className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#e8eaed]/60 pointer-events-none transition-all duration-150
-          peer-focus:top-[11px] peer-focus:text-xs peer-focus:text-[#8ab4f8]
-          peer-[:not(:placeholder-shown)]:top-[11px] peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-[#e8eaed]/60"
-      >
-        {label}
-      </label>
-      {suffix && (
-        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[#e8eaed]/40 pointer-events-none">
-          {suffix}
-        </span>
-      )}
-    </div>
+    <input
+      id={id}
+      type={type}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      required={required}
+      autoFocus={autoFocus}
+      className={`w-full px-4 py-3 bg-transparent border border-white/20 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-emerald-400/60 transition-colors ${className ?? ''}`}
+    />
   );
 }
 
-/* ── Outlined select ── */
-function OutlinedSelect({
+/* ── Select matching login page style ── */
+function DarkSelect({
   id,
-  label,
   value,
   onChange,
   children,
   className,
 }: {
   id: string;
-  label: string;
   value: string;
   onChange: (v: string) => void;
   children: React.ReactNode;
   className?: string;
 }) {
   return (
-    <div className={`relative ${className ?? ''}`}>
-      <select
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="peer w-full pl-3 pr-8 pt-5 pb-2 bg-[#303134] border border-white/20 rounded text-sm text-[#e8eaed] focus:outline-none focus:border-[#8ab4f8] transition-colors appearance-none"
-      >
-        {children}
-      </select>
-      <label
-        htmlFor={id}
-        className={`absolute left-3 text-xs pointer-events-none transition-colors ${
-          value ? 'top-[11px] text-[#e8eaed]/60' : 'top-1/2 -translate-y-1/2 text-sm text-[#e8eaed]/60'
-        }`}
-      >
-        {label}
-      </label>
-      <svg
-        className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#e8eaed]/50 pointer-events-none"
-        fill="none" stroke="currentColor" viewBox="0 0 24 24"
-      >
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-      </svg>
-    </div>
+    <select
+      id={id}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={`w-full px-4 py-3 bg-[#0E1829] border border-white/20 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-400/60 transition-colors appearance-none ${className ?? ''}`}
+    >
+      {children}
+    </select>
   );
 }
 
-/* ── Shell — dark card + footer ── */
+/* ── Shell wrapper ── */
 function Shell({
+  step,
+  stepIndex,
+  totalSteps,
   title,
   subtitle,
   children,
 }: {
+  step: string;
+  stepIndex: number;
+  totalSteps: number;
   title: string;
   subtitle: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#202124] font-sans">
-      <div className="w-full max-w-[850px] mx-4">
-        <div className="bg-[#303134] rounded-2xl overflow-hidden flex min-h-[340px]">
-          {/* Left */}
-          <div className="w-[320px] shrink-0 flex flex-col justify-center px-10 py-12">
-            {/* Logo */}
-            <div className="mb-6">
-              <div className="relative w-10 h-10">
-                <div className="absolute inset-0 flex items-end justify-start">
-                  <div className="w-0 h-0 border-l-[20px] border-l-transparent border-b-[32px] border-b-emerald-500" />
-                </div>
-                <div className="absolute inset-0 flex items-start justify-end">
-                  <div className="w-0 h-0 border-r-[20px] border-r-transparent border-t-[32px] border-t-orange-400" />
+    <div className="min-h-screen flex items-center justify-center bg-[#060D1B] font-sans p-4">
+      <div className="w-full max-w-[760px] flex rounded-2xl overflow-hidden shadow-2xl" style={{ minHeight: '420px' }}>
+
+        {/* ── Left: Illustration panel (mirrors login right side) ── */}
+        <div className="w-[260px] shrink-0 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #0a1628 0%, #0d1f38 50%, #091220 100%)' }}>
+          {/* Glow orbs */}
+          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full bg-emerald-500/10 blur-3xl" />
+          <div className="absolute bottom-1/4 right-1/4 w-36 h-36 rounded-full bg-indigo-500/10 blur-3xl" />
+
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 p-6">
+            {/* Envelope icon */}
+            <div className="relative">
+              <div className="w-32 h-20 bg-white/5 border border-white/10 rounded-2xl shadow-xl flex flex-col items-center justify-center gap-2 p-3">
+                <svg className="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                <div className="space-y-1 w-full">
+                  <div className="h-1 bg-white/15 rounded-full w-full" />
+                  <div className="h-1 bg-white/10 rounded-full w-3/4 mx-auto" />
                 </div>
               </div>
+              <div className="absolute -top-2 -right-2 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg">
+                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                </svg>
+              </div>
             </div>
-            <h1 className="text-3xl font-normal text-white mb-3 tracking-tight leading-tight">{title}</h1>
-            <p className="text-sm text-[#e8eaed]/60">{subtitle}</p>
+
+            {/* Step progress dots */}
+            {step !== 'success' && (
+              <div className="flex gap-1.5">
+                {Array.from({ length: totalSteps }).map((_, i) => (
+                  <div
+                    key={i}
+                    className={`rounded-full transition-all duration-300 ${
+                      i < stepIndex
+                        ? 'w-4 h-1.5 bg-emerald-400'
+                        : i === stepIndex
+                        ? 'w-6 h-1.5 bg-emerald-400'
+                        : 'w-4 h-1.5 bg-white/15'
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Tagline */}
+            <div className="text-center">
+              <p className="text-white/70 text-sm font-semibold">Adventist Church Mail</p>
+              <p className="text-white/30 text-xs mt-0.5">Secure · Private · Connected</p>
+            </div>
           </div>
-
-          {/* Divider */}
-          <div className="w-px bg-white/10 self-stretch my-8" />
-
-          {/* Right */}
-          <div className="flex-1 flex flex-col justify-center px-10 py-10">
-            {children}
-          </div>
         </div>
-      </div>
 
-      {/* Footer */}
-      <div className="flex items-center justify-between w-full max-w-[850px] mx-4 mt-4 px-2">
-        <div className="flex items-center gap-1 text-xs text-[#e8eaed]/40">
-          <span>English (United States)</span>
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
+        {/* ── Right: Form ── */}
+        <div className="flex-1 bg-[#0E1829] flex flex-col justify-center px-10 py-12">
+          <h1 className="text-xl font-bold text-white mb-1 tracking-tight">{title}</h1>
+          <p className="text-xs text-white/40 mb-7">{subtitle}</p>
+          {children}
         </div>
-        <div className="flex items-center gap-5 text-xs text-[#e8eaed]/40">
-          <button className="hover:text-[#e8eaed]/70 transition-colors">Help</button>
-          <button className="hover:text-[#e8eaed]/70 transition-colors">Privacy</button>
-          <button className="hover:text-[#e8eaed]/70 transition-colors">Terms</button>
-        </div>
+
       </div>
     </div>
   );
@@ -169,38 +157,29 @@ function Shell({
    MAIN COMPONENT
 ══════════════════════════════════════════════════ */
 type Step = 'name' | 'basic' | 'email' | 'password' | 'success';
+const STEP_ORDER: Step[] = ['name', 'basic', 'email', 'password'];
 
 export default function SignupPage() {
   const router = useRouter();
-
   const [step, setStep] = useState<Step>('name');
 
-  // Step 1 — Name
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-
-  // Step 2 — Basic info
   const [month, setMonth] = useState('');
   const [day, setDay] = useState('');
   const [year, setYear] = useState('');
   const [gender, setGender] = useState('');
-
-  // Step 3 — Email
   const [email, setEmail] = useState('');
-
-  // Step 4 — Password
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const stepIndex = STEP_ORDER.indexOf(step as Step);
+
   async function handleSubmit() {
-    if (password !== confirm) {
-      setError("Passwords don't match.");
-      return;
-    }
+    if (password !== confirm) { setError("Passwords don't match."); return; }
     setError('');
     setLoading(true);
     try {
@@ -220,136 +199,109 @@ export default function SignupPage() {
     }
   }
 
+  const navBtn = (label: string, onClick: () => void, disabled = false) => (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="text-xs text-white/40 hover:text-white/70 transition-colors"
+    >
+      {label}
+    </button>
+  );
+
+  const nextBtn = (label = 'Next', disabled = false) => (
+    <button
+      type="submit"
+      disabled={disabled}
+      className="px-5 py-2.5 bg-[#1E2D45] hover:bg-[#253550] disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+    >
+      {label}
+    </button>
+  );
+
   /* ── Step 1: Name ── */
   if (step === 'name') {
     return (
-      <Shell title="Create an Adventist Account" subtitle="Enter your name">
-        <form
-          onSubmit={(e) => { e.preventDefault(); if (firstName.trim()) setStep('basic'); }}
-          className="flex flex-col gap-4"
-        >
+      <Shell step={step} stepIndex={0} totalSteps={4} title="Create an Adventist Account" subtitle="Enter your first and last name">
+        <form onSubmit={(e) => { e.preventDefault(); if (firstName.trim()) setStep('basic'); }} className="flex flex-col gap-3">
           <div className="flex gap-3">
-            <OutlinedInput id="first" label="First name" value={firstName} onChange={setFirstName} required autoFocus />
-            <OutlinedInput id="last" label="Last name (optional)" value={lastName} onChange={setLastName} />
+            <DarkInput id="first" placeholder="First name" value={firstName} onChange={setFirstName} required autoFocus />
+            <DarkInput id="last" placeholder="Last name (optional)" value={lastName} onChange={setLastName} />
           </div>
+
           {hasGoogleClientId && (
-            <div className="mt-4">
-              <div className="flex items-center gap-3 mb-4">
+            <>
+              <div className="flex items-center gap-3 my-2">
                 <div className="flex-1 h-px bg-white/10" />
-                <span className="text-xs text-[#e8eaed]/30">OR</span>
+                <span className="text-xs text-white/25 font-medium">OR</span>
                 <div className="flex-1 h-px bg-white/10" />
               </div>
-              <GoogleOAuthButton
-                mode="signup"
-                onSuccess={() => setStep('success')}
-                onError={() => setStep('success')}
-              />
-            </div>
+              <GoogleOAuthButton mode="signup" onSuccess={() => setStep('success')} onError={() => setStep('success')} />
+            </>
           )}
 
-          <div className="flex items-center justify-between mt-6">
-            <Link href="/login" className="text-sm text-[#8ab4f8] hover:underline">
-              Sign in instead
-            </Link>
-            <button
-              type="submit"
-              className="px-6 py-2 bg-[#8ab4f8] hover:bg-[#93bbf9] text-[#202124] text-sm font-medium rounded-full transition-colors"
-            >
-              Next
-            </button>
+          <div className="flex items-center justify-between mt-4">
+            <Link href="/login" className="text-xs text-white/40 hover:text-white/70 transition-colors">Sign in instead</Link>
+            {nextBtn()}
           </div>
         </form>
       </Shell>
     );
   }
 
-  /* ── Step 2: Basic information ── */
+  /* ── Step 2: Basic info ── */
   if (step === 'basic') {
     return (
-      <Shell title="Basic information" subtitle="Enter your birthday and gender">
-        <form
-          onSubmit={(e) => { e.preventDefault(); setStep('email'); }}
-          className="flex flex-col gap-4"
-        >
-          {/* Birthday row */}
+      <Shell step={step} stepIndex={1} totalSteps={4} title="Basic information" subtitle="Enter your birthday and gender">
+        <form onSubmit={(e) => { e.preventDefault(); setStep('email'); }} className="flex flex-col gap-3">
           <div className="flex gap-2">
-            <OutlinedSelect id="month" label="Month" value={month} onChange={setMonth} className="flex-1">
-              <option value="" />
-              {['January','February','March','April','May','June','July','August','September','October','November','December'].map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </OutlinedSelect>
-            <OutlinedInput id="day" label="Day" value={day} onChange={setDay} className="w-20" />
-            <OutlinedInput id="year" label="Year" value={year} onChange={setYear} className="w-28" />
+            <div className="flex-1 relative">
+              <DarkSelect id="month" value={month} onChange={setMonth} className="flex-1">
+                <option value="">Month</option>
+                {['January','February','March','April','May','June','July','August','September','October','November','December'].map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </DarkSelect>
+              <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <DarkInput id="day" placeholder="Day" value={day} onChange={setDay} className="w-20" />
+            <DarkInput id="year" placeholder="Year" value={year} onChange={setYear} className="w-24" />
           </div>
 
-          {/* Gender */}
-          <OutlinedSelect id="gender" label="Gender" value={gender} onChange={setGender}>
-            <option value="" />
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-            <option value="other">Rather not say</option>
-          </OutlinedSelect>
-
-          <button type="button" className="text-sm text-[#8ab4f8] hover:underline text-left w-fit">
-            Why we ask for your birthday and gender
-          </button>
+          <div className="relative">
+            <DarkSelect id="gender" value={gender} onChange={setGender}>
+              <option value="">Gender</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="other">Rather not say</option>
+            </DarkSelect>
+            <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
 
           <div className="flex items-center justify-between mt-4">
-            <button
-              type="button"
-              onClick={() => setStep('name')}
-              className="text-sm text-[#8ab4f8] hover:underline"
-            >
-              Back
-            </button>
-            <button
-              type="submit"
-              className="px-6 py-2 bg-[#8ab4f8] hover:bg-[#93bbf9] text-[#202124] text-sm font-medium rounded-full transition-colors"
-            >
-              Next
-            </button>
+            {navBtn('← Back', () => setStep('name'))}
+            {nextBtn()}
           </div>
         </form>
       </Shell>
     );
   }
 
-  /* ── Step 3: Email address ── */
+  /* ── Step 3: Email ── */
   if (step === 'email') {
     return (
-      <Shell title="Create your email address" subtitle="Your Adventist Church email address">
-        <form
-          onSubmit={(e) => { e.preventDefault(); if (email.trim()) setStep('password'); }}
-          className="flex flex-col gap-4"
-        >
-          <OutlinedInput
-            id="email"
-            label="Email address"
-            type="email"
-            value={email}
-            onChange={setEmail}
-            required
-            autoFocus
-          />
-          <p className="text-xs text-[#e8eaed]/50">
-            You can use letters, numbers & periods
-          </p>
-
+      <Shell step={step} stepIndex={2} totalSteps={4} title="Create your email address" subtitle="Your Adventist Church email">
+        <form onSubmit={(e) => { e.preventDefault(); if (email.trim()) setStep('password'); }} className="flex flex-col gap-3">
+          <DarkInput id="email" type="email" placeholder="you@church.org" value={email} onChange={setEmail} required autoFocus />
+          <p className="text-xs text-white/30">You can use letters, numbers & periods</p>
           <div className="flex items-center justify-between mt-4">
-            <button
-              type="button"
-              onClick={() => setStep('basic')}
-              className="text-sm text-[#8ab4f8] hover:underline"
-            >
-              Back
-            </button>
-            <button
-              type="submit"
-              className="px-6 py-2 bg-[#8ab4f8] hover:bg-[#93bbf9] text-[#202124] text-sm font-medium rounded-full transition-colors"
-            >
-              Next
-            </button>
+            {navBtn('← Back', () => setStep('basic'))}
+            {nextBtn()}
           </div>
         </form>
       </Shell>
@@ -359,63 +311,34 @@ export default function SignupPage() {
   /* ── Step 4: Password ── */
   if (step === 'password') {
     return (
-      <Shell title="Create a strong password" subtitle="Create a strong password with a mix of letters, numbers and symbols">
-        <form
-          onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}
-          className="flex flex-col gap-4"
-        >
-          <OutlinedInput
-            id="password"
-            label="Password"
-            type={showPassword ? 'text' : 'password'}
-            value={password}
-            onChange={setPassword}
-            required
-            autoFocus
-          />
-          <OutlinedInput
-            id="confirm"
-            label="Confirm"
-            type={showPassword ? 'text' : 'password'}
-            value={confirm}
-            onChange={setConfirm}
-            required
-          />
+      <Shell step={step} stepIndex={3} totalSteps={4} title="Create a strong password" subtitle="Mix of letters, numbers and symbols">
+        <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="flex flex-col gap-3">
+          <div className="relative">
+            <DarkInput id="password" type={showPassword ? 'text' : 'password'} placeholder="••••••••" value={password} onChange={setPassword} required autoFocus />
+          </div>
+          <DarkInput id="confirm" type={showPassword ? 'text' : 'password'} placeholder="Confirm password" value={confirm} onChange={setConfirm} required />
 
-          {/* Show password checkbox */}
-          <label className="flex items-center gap-2 cursor-pointer mt-1">
+          <label className="flex items-center gap-2 cursor-pointer">
             <div
               onClick={() => setShowPassword(!showPassword)}
-              className={`w-4 h-4 rounded-sm border transition-colors flex items-center justify-center cursor-pointer ${
-                showPassword ? 'bg-[#8ab4f8] border-[#8ab4f8]' : 'border-white/30 bg-transparent'
+              className={`w-4 h-4 rounded border transition-colors flex items-center justify-center cursor-pointer shrink-0 ${
+                showPassword ? 'bg-emerald-500 border-emerald-500' : 'border-white/30 bg-transparent'
               }`}
             >
               {showPassword && (
-                <svg className="w-3 h-3 text-[#202124]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                 </svg>
               )}
             </div>
-            <span className="text-sm text-[#e8eaed]/80">Show password</span>
+            <span className="text-xs text-white/50">Show password</span>
           </label>
 
           {error && <p className="text-xs text-red-400">{error}</p>}
 
           <div className="flex items-center justify-between mt-4">
-            <button
-              type="button"
-              onClick={() => { setStep('email'); setError(''); }}
-              className="text-sm text-[#8ab4f8] hover:underline"
-            >
-              Back
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-6 py-2 bg-[#8ab4f8] hover:bg-[#93bbf9] disabled:opacity-60 text-[#202124] text-sm font-medium rounded-full transition-colors"
-            >
-              {loading ? 'Creating…' : 'Next'}
-            </button>
+            {navBtn('← Back', () => { setStep('email'); setError(''); })}
+            {nextBtn(loading ? 'Creating…' : 'Create Account', loading)}
           </div>
         </form>
       </Shell>
@@ -424,30 +347,29 @@ export default function SignupPage() {
 
   /* ── Step 5: Success ── */
   return (
-    <Shell title="Account submitted!" subtitle="Awaiting admin verification">
+    <Shell step="success" stepIndex={4} totalSteps={4} title="Account submitted!" subtitle="Awaiting admin verification">
       <div className="flex flex-col gap-6">
         <div className="flex items-start gap-4">
-          <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
-            <svg className="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+            <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
             </svg>
           </div>
           <div>
-            <p className="text-sm text-[#e8eaed]/80 leading-relaxed">
-              Your account request for <span className="text-[#8ab4f8]">{email}</span> has been submitted.
+            <p className="text-sm text-white/70 leading-relaxed">
+              Your request for <span className="text-emerald-400">{email || 'your account'}</span> has been submitted.
             </p>
-            <p className="text-sm text-[#e8eaed]/50 mt-2 leading-relaxed">
-              An administrator must approve your account before you can sign in. You will be notified once it&apos;s verified.
+            <p className="text-xs text-white/40 mt-2 leading-relaxed">
+              An administrator must approve your account before you can sign in. You will be notified once verified.
             </p>
           </div>
         </div>
-
-        <div className="flex justify-end mt-2">
+        <div className="flex justify-end">
           <button
             onClick={() => router.push('/login')}
-            className="px-6 py-2 bg-[#8ab4f8] hover:bg-[#93bbf9] text-[#202124] text-sm font-medium rounded-full transition-colors"
+            className="px-5 py-2.5 bg-[#1E2D45] hover:bg-[#253550] text-white text-sm font-semibold rounded-lg transition-colors"
           >
-            Go to Sign in
+            Go to Sign In
           </button>
         </div>
       </div>
