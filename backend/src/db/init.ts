@@ -82,25 +82,30 @@ export async function initDatabase(): Promise<void> {
 
   console.log('Database schema initialized');
 
-  // Seed default admin user if not exists (for Railway/deployment)
+  // Seed test accounts (for Railway/deployment)
   try {
-    await seedAdminUser();
+    await seedTestAccounts();
   } catch (err) {
-    console.warn('Admin seed skipped:', (err as Error).message);
+    console.warn('Seed skipped:', (err as Error).message);
   }
 }
 
-async function seedAdminUser(): Promise<void> {
-  const email = 'admin@church.org';
-  const password = 'admin123';
-  const passwordHash = await bcrypt.hash(password, 12);
-  const id = uuidv4();
+async function seedTestAccounts(): Promise<void> {
+  const accounts = [
+    { email: 'superadmin@church.org', displayName: 'Super Admin',  role: 'super_admin', password: 'superadmin123' },
+    { email: 'admin@church.org',      displayName: 'Admin User',    role: 'admin',       password: 'admin123'      },
+    { email: 'user@church.org',       displayName: 'Test User',     role: 'user',        password: 'user1234'      },
+  ];
 
-  await pool.query(
-    `INSERT INTO users (id, email, display_name, role, password_hash, is_verified)
-     VALUES ($1, $2, $3, $4, $5, true)
-     ON CONFLICT (email) DO UPDATE SET password_hash = $5, role = $4, is_verified = true`,
-    [id, email, 'System Admin', 'super_admin', passwordHash]
-  );
-  console.log('Admin user ready: admin@church.org (change password after first login)');
+  for (const account of accounts) {
+    const passwordHash = await bcrypt.hash(account.password, 12);
+    const id = uuidv4();
+    await pool.query(
+      `INSERT INTO users (id, email, display_name, role, password_hash, is_verified)
+       VALUES ($1, $2, $3, $4, $5, true)
+       ON CONFLICT (email) DO UPDATE SET password_hash = $5, role = $4, is_verified = true`,
+      [id, account.email, account.displayName, account.role, passwordHash]
+    );
+    console.log(`Test account ready: ${account.email} / ${account.password} (${account.role})`);
+  }
 }
