@@ -15,6 +15,7 @@ function OutlinedInput({
   required,
   autoFocus,
   suffix,
+  className,
 }: {
   id: string;
   label: string;
@@ -24,9 +25,10 @@ function OutlinedInput({
   required?: boolean;
   autoFocus?: boolean;
   suffix?: string;
+  className?: string;
 }) {
   return (
-    <div className="relative">
+    <div className={`relative ${className ?? ''}`}>
       <input
         id={id}
         type={type}
