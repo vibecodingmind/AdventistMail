@@ -109,19 +109,10 @@ export default function LoginPage() {
           </Link>
 
           {/* Footer links */}
-          <div className="mt-5 space-y-2">
+          <div className="mt-5">
             <button className="text-xs text-white/30 hover:text-white/60 transition-colors block">
               Forgot my password
             </button>
-            <div className="flex items-center gap-2">
-              <p className="text-xs text-white/30">If You Don&apos;t Have An Account, Create</p>
-              <Link
-                href="/signup"
-                className="text-xs font-medium px-3 py-1 border border-white/20 rounded text-white/50 hover:border-white/40 hover:text-white/80 transition-colors"
-              >
-                Register
-              </Link>
-            </div>
           </div>
         </div>
 
