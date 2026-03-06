@@ -34,11 +34,11 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
       <div className="w-full max-w-md p-8 bg-white rounded-2xl shadow-sm border border-slate-200">
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="w-12 h-12 rounded-xl bg-indigo-600 flex items-center justify-center">
-            <span className="text-white font-bold text-xl">A</span>
+        <div className="flex items-center justify-center gap-3 mb-8">
+          <div className="w-12 h-12 rounded-xl bg-indigo-600 flex items-center justify-center shadow-sm">
+            <span className="text-white font-bold text-xl tracking-tight">A</span>
           </div>
-          <h1 className="text-xl font-semibold text-slate-800">
+          <h1 className="text-xl font-semibold text-slate-800 tracking-tight">
             Adventist Church Mail
           </h1>
         </div>

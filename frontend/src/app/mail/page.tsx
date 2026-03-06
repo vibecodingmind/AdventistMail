@@ -37,7 +37,7 @@ export default function MailPage() {
       {/* Email list */}
       <div className="w-[400px] border-r border-slate-200 flex flex-col shrink-0">
         <div className="p-4 border-b border-slate-100">
-          <h1 className="text-lg font-semibold text-slate-800">Inbox</h1>
+          <h1 className="text-lg font-semibold text-slate-800 tracking-tight">Inbox</h1>
           <div className="flex gap-2 mt-2 overflow-x-auto pb-1">
             {['All', 'Unread', 'Starred'].map((tab) => (
               <button

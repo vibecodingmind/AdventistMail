@@ -90,7 +90,7 @@ export function MessageList({ messages, selectedUid, onSelect, folder, mailbox }
                   <div className="min-w-0 flex-1">
                     <div className="flex justify-between gap-2 items-start">
                       <div className="min-w-0">
-                        <span className="font-medium text-slate-900 truncate block">{name}</span>
+                        <span className="font-medium text-slate-900 truncate block tracking-tight">{name}</span>
                         <span className="text-slate-600 truncate block text-sm">• {msg.subject}</span>
                       </div>
                       <span className="text-xs text-slate-400 shrink-0 mt-0.5">

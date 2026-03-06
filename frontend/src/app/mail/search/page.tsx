@@ -38,7 +38,7 @@ export default function SearchPage() {
     <div className="flex flex-1 min-w-0 bg-white">
       <div className="w-[400px] border-r border-slate-200 flex flex-col shrink-0">
         <div className="p-4 border-b border-slate-100">
-          <h1 className="text-lg font-semibold text-slate-800">Search</h1>
+          <h1 className="text-lg font-semibold text-slate-800 tracking-tight">Search</h1>
           <p className="text-sm text-slate-500 mt-1">
             Results for &quot;{q}&quot;
           </p>

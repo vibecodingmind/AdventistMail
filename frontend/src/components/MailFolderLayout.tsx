@@ -41,7 +41,7 @@ export function MailFolderLayout({ folder, title }: MailFolderLayoutProps) {
     <div className="flex flex-1 min-w-0 bg-white">
       <div className="w-[400px] border-r border-slate-200 flex flex-col shrink-0">
         <div className="p-4 border-b border-slate-100">
-          <h1 className="text-lg font-semibold text-slate-800">{title}</h1>
+          <h1 className="text-lg font-semibold text-slate-800 tracking-tight">{title}</h1>
         </div>
         <MessageList
           messages={messages}

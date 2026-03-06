@@ -11,4 +11,16 @@ body {
   color: var(--foreground);
   background: var(--background);
   font-feature-settings: "rlig" 1, "calt" 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Improve input and button typography */
+input, button, textarea, select {
+  font-family: inherit;
+}
+
+/* Refined heading styles */
+h1, h2, h3 {
+  letter-spacing: -0.02em;
 }

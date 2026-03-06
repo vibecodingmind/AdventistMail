@@ -8,7 +8,11 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['var(--font-geist-sans)', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
+      },
+      letterSpacing: {
+        tighter: '-0.02em',
+        tight: '-0.01em',
       },
     },
   },

@@ -95,11 +95,11 @@ export function Sidebar() {
   return (
     <aside className="w-64 flex flex-col bg-white border-r border-slate-200">
       {/* Logo */}
-      <Link href="/mail" className="flex items-center gap-2 px-4 py-5">
-        <div className="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center">
-          <span className="text-white font-bold text-lg">A</span>
+      <Link href="/mail" className="flex items-center gap-3 px-4 py-5">
+        <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-sm">
+          <span className="text-white font-bold text-xl tracking-tight">A</span>
         </div>
-        <span className="font-semibold text-slate-800 text-lg">Adventist Mail</span>
+        <span className="font-semibold text-slate-800 text-lg tracking-tight">Adventist Mail</span>
       </Link>
 
       {/* Search */}

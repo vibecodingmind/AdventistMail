@@ -52,7 +52,7 @@ export function MessageView({ uid, folder, mailbox }: MessageViewProps) {
 
   return (
     <div className="p-6 max-w-3xl">
-      <h1 className="text-xl font-semibold text-slate-900 mb-4">{data.subject}</h1>
+      <h1 className="text-xl font-semibold text-slate-900 mb-4 tracking-tight">{data.subject}</h1>
       <div className="flex flex-wrap gap-4 text-sm text-slate-600 mb-6 pb-4 border-b border-slate-200">
         <span><strong className="text-slate-700">From:</strong> {data.from}</span>
         <span><strong className="text-slate-700">To:</strong> {data.to}</span>
