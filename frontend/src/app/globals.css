@@ -5,6 +5,8 @@
 :root {
   --foreground: #1e293b;
   --background: #f8fafc;
+  --accent-color: #10b981;
+  --accent-color-hover: #059669;
 }
 
 body {
@@ -37,4 +39,33 @@ h1, h2, h3 {
   --tw-prose-body: theme('colors.slate[300]');
   --tw-prose-headings: theme('colors.slate[100]');
   --tw-prose-links: theme('colors.indigo[400]');
+}
+
+/* Dynamic accent color utilities */
+.accent-bg {
+  background-color: var(--accent-color);
+}
+
+.accent-bg-hover:hover {
+  background-color: var(--accent-color-hover);
+}
+
+.accent-text {
+  color: var(--accent-color);
+}
+
+.accent-border {
+  border-color: var(--accent-color);
+}
+
+.accent-border-hover:hover {
+  border-color: var(--accent-color-hover);
+}
+
+.accent-ring {
+  --tw-ring-color: var(--accent-color);
+}
+
+.accent-ring-hover:hover {
+  --tw-ring-color: var(--accent-color-hover);
 }

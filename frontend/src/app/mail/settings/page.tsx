@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { api } from '@/lib/api';
+import { useTheme } from '@/components/ThemeProvider';
 
 /* ── helpers ── */
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
@@ -11,7 +12,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
     <button
       type="button"
       onClick={() => onChange(!checked)}
-      className={`relative w-10 h-5.5 rounded-full transition-colors ${checked ? 'bg-emerald-500' : 'bg-slate-200'}`}
+      className={`relative w-10 h-5.5 rounded-full transition-colors accent-bg ${!checked ? 'bg-slate-200' : ''}`}
       style={{ height: '22px' }}
     >
       <span className={`absolute top-0.5 left-0.5 w-4.5 h-4.5 bg-white rounded-full shadow transition-transform ${checked ? 'translate-x-4.5' : ''}`}
@@ -26,9 +27,9 @@ function Radio({ checked, onChange, label }: { checked: boolean; onChange: () =>
     <label className="flex items-center gap-2 cursor-pointer">
       <div
         onClick={onChange}
-        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center cursor-pointer ${checked ? 'border-emerald-500' : 'border-slate-300'}`}
+        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center cursor-pointer ${checked ? 'accent-border' : 'border-slate-300'}`}
       >
-        {checked && <div className="w-2 h-2 rounded-full bg-emerald-500" />}
+        {checked && <div className="w-2 h-2 rounded-full accent-bg" />}
       </div>
       <span className="text-sm text-slate-700">{label}</span>
     </label>
@@ -99,14 +100,14 @@ function SignaturesTab() {
       <Section title="Manage signatures" desc="Create and manage email signatures. Choose one when composing.">
         <form onSubmit={handleCreate} className="space-y-3">
           <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Signature name" required
-            className="w-full max-w-sm px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30" />
+            className="w-full max-w-sm px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none accent-ring focus:ring-2 focus:ring-offset-2 transition-colors" />
           <textarea value={newContent} onChange={(e) => setNewContent(e.target.value)} placeholder="Signature content..." rows={4} required
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30 resize-none" />
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none accent-ring focus:ring-2 focus:ring-offset-2 transition-colors resize-none" />
           <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={newDefault} onChange={(e) => setNewDefault(e.target.checked)} className="rounded text-emerald-500" />
+            <input type="checkbox" checked={newDefault} onChange={(e) => setNewDefault(e.target.checked)} className="rounded accent-bg focus:accent-ring" />
             <span className="text-sm text-slate-700">Set as default</span>
           </label>
-          <button type="submit" disabled={saving} className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg disabled:opacity-50">
+          <button type="submit" disabled={saving} className="px-4 py-2 accent-bg accent-bg-hover text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors">
             {saving ? 'Creating…' : 'Add signature'}
           </button>
         </form>
@@ -184,12 +185,12 @@ function TemplatesTab() {
       <Section title="Email templates" desc="Create reusable templates for common emails. Insert them when composing.">
         <form onSubmit={handleCreate} className="space-y-3">
           <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Template name" required
-            className="w-full max-w-sm px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30" />
+            className="w-full max-w-sm px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none accent-ring focus:ring-2 focus:ring-offset-2 transition-colors" />
           <input type="text" value={newSubject} onChange={(e) => setNewSubject(e.target.value)} placeholder="Subject" required
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30" />
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none accent-ring focus:ring-2 focus:ring-offset-2 transition-colors" />
           <textarea value={newBody} onChange={(e) => setNewBody(e.target.value)} placeholder="Body (HTML supported)" rows={6} required
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30 resize-none" />
-          <button type="submit" disabled={saving} className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg disabled:opacity-50">
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none accent-ring focus:ring-2 focus:ring-offset-2 transition-colors resize-none" />
+          <button type="submit" disabled={saving} className="px-4 py-2 accent-bg accent-bg-hover text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors">
             {saving ? 'Creating…' : 'Add template'}
           </button>
         </form>
@@ -612,7 +613,7 @@ function DelegateAccessSection() {
                 onChange={(e) => setNewEmail(e.target.value)}
                 placeholder="Delegate's email address"
                 required
-                className="w-full max-w-sm px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30"
+                className="w-full max-w-sm px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none accent-ring focus:ring-2 focus:ring-offset-2 transition-colors"
               />
               <div className="flex items-center gap-4">
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -620,7 +621,7 @@ function DelegateAccessSection() {
                     type="checkbox"
                     checked={newCanRead}
                     onChange={(e) => setNewCanRead(e.target.checked)}
-                    className="rounded text-emerald-500 focus:ring-emerald-400"
+                    className="rounded accent-bg focus:accent-ring focus:ring-2 focus:ring-offset-2"
                   />
                   <span className="text-sm text-slate-700">Can read mail</span>
                 </label>
@@ -629,7 +630,7 @@ function DelegateAccessSection() {
                     type="checkbox"
                     checked={newCanSendAs}
                     onChange={(e) => setNewCanSendAs(e.target.checked)}
-                    className="rounded text-emerald-500 focus:ring-emerald-400"
+                    className="rounded accent-bg focus:accent-ring focus:ring-2 focus:ring-offset-2"
                   />
                   <span className="text-sm text-slate-700">Can send as me</span>
                 </label>
@@ -638,7 +639,7 @@ function DelegateAccessSection() {
                 <button
                   type="submit"
                   disabled={adding}
-                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg disabled:opacity-50"
+                  className="px-4 py-2 accent-bg accent-bg-hover text-white text-sm font-medium rounded-lg disabled:opacity-50"
                 >
                   {adding ? 'Adding…' : 'Add delegate'}
                 </button>
@@ -699,6 +700,7 @@ export default function SettingsPage() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab') || 'general';
   const [tab, setTab] = useState(initialTab);
+  const { theme, setTheme, accent, setAccent } = useTheme();
 
   // General settings state
   const [pageSize, setPageSize] = useState('25');
@@ -747,10 +749,6 @@ export default function SettingsPage() {
   // Offline
   const [offlineMail, setOfflineMail] = useState(false);
 
-  // Themes
-  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('light');
-  const [accent, setAccent] = useState('emerald');
-
   // Storage
   const [usage, setUsage] = useState<{
     planName: string;
@@ -788,8 +786,7 @@ export default function SettingsPage() {
         if (s.signature) setSignature(s.signature);
         if (s.inboxType) setInboxType(s.inboxType);
         if (s.readingPane) setReadingPane(s.readingPane);
-        if (s.theme) setTheme(s.theme);
-        if (s.accent) setAccent(s.accent);
+        // Theme and accent are now handled by ThemeProvider context
       } catch {}
     }
   }, []);
@@ -900,7 +897,7 @@ export default function SettingsPage() {
           </svg>
           <input
             placeholder="Search mail"
-            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-300 transition-colors"
+            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder-slate-400 focus:outline-none accent-ring focus:ring-2 focus:ring-offset-2 transition-colors"
           />
         </div>
       </div>
@@ -916,7 +913,7 @@ export default function SettingsPage() {
               onClick={() => setTab(t.id)}
               className={`px-3 py-2.5 text-sm whitespace-nowrap transition-colors ${
                 tab === t.id
-                  ? 'border-b-2 border-emerald-500 text-emerald-600 font-medium'
+                  ? 'border-b-2 accent-border accent-text font-medium'
                   : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
               }`}
             >
@@ -929,7 +926,7 @@ export default function SettingsPage() {
         {tab === 'general' && (
           <div className="max-w-4xl">
             <Section title="Language" desc="Change language and display settings">
-              <select className="px-3 py-1.5 border border-slate-300 rounded text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400/30">
+              <select className="px-3 py-1.5 border border-slate-300 rounded text-sm text-slate-700 focus:outline-none accent-ring focus:ring-2 focus:ring-offset-2 transition-colors">
                 <option>English (United States)</option>
               </select>
             </Section>
@@ -938,7 +935,7 @@ export default function SettingsPage() {
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-slate-600">Show</span>
                 <select value={pageSize} onChange={(e) => setPageSize(e.target.value)}
-                  className="px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30">
+                  className="px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none accent-ring focus:ring-2 focus:ring-offset-2 transition-colors">
                   <option value="25">25</option>
                   <option value="50">50</option>
                   <option value="100">100</option>
@@ -951,7 +948,7 @@ export default function SettingsPage() {
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-slate-600">Send cancellation period:</span>
                 <select value={undoSend} onChange={(e) => setUndoSend(e.target.value)}
-                  className="px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30">
+                  className="px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none accent-ring focus:ring-2 focus:ring-offset-2 transition-colors">
                   <option value="5">5</option>
                   <option value="10">10</option>
                   <option value="20">20</option>
@@ -1011,27 +1008,27 @@ export default function SettingsPage() {
                       <div className="flex items-center gap-2">
                         <label className="text-xs text-slate-500">First day:</label>
                         <input type="date" value={vacationStart} onChange={(e) => setVacationStart(e.target.value)}
-                          className="px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30" />
+                          className="px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none accent-ring focus:ring-2 focus:ring-offset-2 transition-colors" />
                       </div>
                       <div className="flex items-center gap-2">
                         <label className="text-xs text-slate-500">Last day (optional):</label>
                         <input type="date" value={vacationEnd} onChange={(e) => setVacationEnd(e.target.value)}
-                          className="px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30" />
+                          className="px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none accent-ring focus:ring-2 focus:ring-offset-2 transition-colors" />
                       </div>
                     </div>
                     <input type="text" value={vacationSubject} onChange={(e) => setVacationSubject(e.target.value)}
                       placeholder="Subject"
-                      className="w-full px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30" />
+                      className="w-full px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none accent-ring focus:ring-2 focus:ring-offset-2 transition-colors" />
                     <textarea value={vacationMsg} onChange={(e) => setVacationMsg(e.target.value)}
                       rows={4} placeholder="Message"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30 resize-none" />
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none accent-ring focus:ring-2 focus:ring-offset-2 transition-colors resize-none" />
                   </div>
                 )}
               </div>
             </Section>
 
             <div className="flex justify-end gap-3 pt-4">
-              <button onClick={saveSettings} className="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg transition-colors">
+              <button onClick={saveSettings} className="px-5 py-2 accent-bg accent-bg-hover text-white text-sm font-medium rounded-lg transition-colors">
                 Save Changes
               </button>
             </div>
@@ -1071,17 +1068,17 @@ export default function SettingsPage() {
                         <div className="flex items-center gap-3">
                           <button
                             onClick={() => setLabelVisibility((p) => ({ ...p, [label]: true }))}
-                            className={`text-xs ${labelVisibility[label] ? 'text-emerald-600 font-medium' : 'text-slate-400 hover:text-slate-600'}`}
+                            className={`text-xs ${labelVisibility[label] ? 'accent-text font-medium' : 'text-slate-400 hover:text-slate-600'}`}
                           >show</button>
                           <button
                             onClick={() => setLabelVisibility((p) => ({ ...p, [label]: false }))}
-                            className={`text-xs ${!labelVisibility[label] ? 'text-emerald-600 font-medium' : 'text-slate-400 hover:text-slate-600'}`}
+                            className={`text-xs ${!labelVisibility[label] ? 'accent-text font-medium' : 'text-slate-400 hover:text-slate-600'}`}
                           >hide</button>
                         </div>
                       </td>
                       <td className="px-4 py-2.5">
                         <label className="flex items-center gap-1.5 cursor-pointer">
-                          <input type="checkbox" defaultChecked className="rounded text-emerald-500 focus:ring-emerald-400" />
+                          <input type="checkbox" defaultChecked className="rounded accent-bg focus:accent-ring focus:ring-2 focus:ring-offset-2" />
                           <span className="text-xs text-slate-500">Show in IMAP</span>
                         </label>
                       </td>
@@ -1150,7 +1147,7 @@ export default function SettingsPage() {
             </Section>
 
             <div className="flex justify-end gap-3 pt-4">
-              <button onClick={saveSettings} className="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg transition-colors">
+              <button onClick={saveSettings} className="px-5 py-2 accent-bg accent-bg-hover text-white text-sm font-medium rounded-lg transition-colors">
                 Save Changes
               </button>
             </div>
@@ -1169,7 +1166,7 @@ export default function SettingsPage() {
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     placeholder="Your full name"
-                    className="w-full max-w-sm px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30"
+                    className="w-full max-w-sm px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none accent-ring focus:ring-2 focus:ring-offset-2 transition-colors"
                   />
                 </div>
               </div>
@@ -1182,25 +1179,25 @@ export default function SettingsPage() {
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
                   placeholder="Current password"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none accent-ring focus:ring-2 focus:ring-offset-2 transition-colors"
                 />
                 <input
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="New password"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none accent-ring focus:ring-2 focus:ring-offset-2 transition-colors"
                 />
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirm new password"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/30"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none accent-ring focus:ring-2 focus:ring-offset-2 transition-colors"
                 />
                 <button
                   onClick={changePassword}
-                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg transition-colors"
+                  className="px-4 py-2 accent-bg accent-bg-hover text-white text-sm font-medium rounded-lg transition-colors"
                 >
                   Change Password
                 </button>
@@ -1322,7 +1319,7 @@ export default function SettingsPage() {
             </Section>
 
             <div className="flex justify-end gap-3 pt-4">
-              <button onClick={saveSettings} className="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg transition-colors">
+              <button onClick={saveSettings} className="px-5 py-2 accent-bg accent-bg-hover text-white text-sm font-medium rounded-lg transition-colors">
                 Save Changes
               </button>
             </div>
@@ -1360,17 +1357,17 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-4 shrink-0">
                   <button
                     onClick={() => onChange(true)}
-                    className={`text-sm ${checked ? 'text-emerald-600 font-medium' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`text-sm ${checked ? 'accent-text font-medium' : 'text-slate-400 hover:text-slate-600'}`}
                   >Enable</button>
                   <button
                     onClick={() => onChange(false)}
-                    className={`text-sm ${!checked ? 'text-emerald-600 font-medium' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`text-sm ${!checked ? 'accent-text font-medium' : 'text-slate-400 hover:text-slate-600'}`}
                   >Disable</button>
                 </div>
               </div>
             ))}
             <div className="flex justify-end gap-3 pt-4">
-              <button onClick={saveSettings} className="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg transition-colors">
+              <button onClick={saveSettings} className="px-5 py-2 accent-bg accent-bg-hover text-white text-sm font-medium rounded-lg transition-colors">
                 Save Changes
               </button>
             </div>
@@ -1397,7 +1394,7 @@ export default function SettingsPage() {
               )}
             </Section>
             <div className="flex justify-end gap-3 pt-4">
-              <button onClick={saveSettings} className="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg transition-colors">
+              <button onClick={saveSettings} className="px-5 py-2 accent-bg accent-bg-hover text-white text-sm font-medium rounded-lg transition-colors">
                 Save Changes
               </button>
             </div>
@@ -1457,7 +1454,7 @@ export default function SettingsPage() {
             </Section>
 
             <div className="flex justify-end gap-3 pt-4">
-              <button onClick={saveSettings} className="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg transition-colors">
+              <button onClick={saveSettings} className="px-5 py-2 accent-bg accent-bg-hover text-white text-sm font-medium rounded-lg transition-colors">
                 Save Changes
               </button>
             </div>
